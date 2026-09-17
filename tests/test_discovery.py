@@ -8,7 +8,6 @@ from open_music.discovery import (
     extract_candidates,
 )
 
-
 SAMPLE_RATE = 8_000
 
 
