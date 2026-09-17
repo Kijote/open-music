@@ -1,4 +1,5 @@
 import numpy as np
+
 from open_music import Event, Sample, match_sample, measure, render
 
 SAMPLE_RATE = 8_000
