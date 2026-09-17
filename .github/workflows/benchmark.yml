@@ -23,15 +23,17 @@ jobs:
           path: corpus/cache
           key: open-music-corpus-${{ hashFiles('corpus/open-small.json') }}
       - run: pip install -e ".[dev]"
-      - name: Download, reconstruct and compare open corpus
+      - name: Discover, reconstruct and compare open corpus
         run: open-music-benchmark
-      - name: Assert smoke benchmark thresholds
+      - name: Assert discovery benchmark thresholds
         run: |
           python - <<'PY'
           import json
           report = json.load(open("artifacts/benchmark/metrics.json"))
           for track in report["tracks"]:
-              assert track["metrics"]["explained_energy"] >= 0.999999
+              assert track["detection"]["precision"] == 1.0
+              assert track["detection"]["recall"] == 1.0
+              assert track["metrics"]["explained_energy"] >= 0.999
               assert track["modularity"]["reuse_ratio"] >= 4
           PY
       - uses: actions/upload-artifact@v4
