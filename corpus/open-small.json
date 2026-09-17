@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "id": "vcsl-percussion-smoke",
+  "description": "Small CC0 percussion corpus pinned to one immutable VCSL commit.",
+  "target_sample_rate": 44100,
+  "assets": [
+    {
+      "id": "vcsl-bass-drum",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Bass%20Drum%201/BDrumNew_hit_v2_rr1_Sum.wav",
+      "cache_path": "vcsl/bass-drum.wav",
+      "size": 281616,
+      "checksum": {
+        "algorithm": "git-sha1",
+        "value": "90e36064984ad741962e2f033e286bc16758b46c"
+      },
+      "license": {
+        "spdx": "CC0-1.0",
+        "url": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/LICENSE",
+        "author": "Versilian Community Sample Library",
+        "redistributable": true,
+        "derivatives": true,
+        "commercial_use": true,
+        "attribution_required": false
+      },
+      "source": {
+        "provider": "VCSL",
+        "repository": "sgossner/VCSL",
+        "commit": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+        "path": "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr1_Sum.wav"
+      }
+    },
+    {
+      "id": "vcsl-snare",
+      "url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Legacy%20Snares/OldSnare/snare_f1.wav",
+      "cache_path": "vcsl/snare.wav",
+      "size": 58134,
+      "checksum": {
+        "algorithm": "git-sha1",
+        "value": "365a9a0e46a2753be2a7d2f829e928e7ff589f0a"
+      },
+      "license": {
+        "spdx": "CC0-1.0",
+        "url": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/LICENSE",
+        "author": "Versilian Community Sample Library",
+        "redistributable": true,
+        "derivatives": true,
+        "commercial_use": true,
+        "attribution_required": false
+      },
+      "source": {
+        "provider": "VCSL",
+        "repository": "sgossner/VCSL",
+        "commit": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+        "path": "Membranophones/Struck Membranophones/Legacy Snares/OldSnare/snare_f1.wav"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "id": "vcsl-four-bar-percussion",
+      "duration_seconds": 8.0,
+      "events": [
+        {"sample_id": "vcsl-bass-drum", "time_seconds": 0.0, "gain": 0.8},
+        {"sample_id": "vcsl-snare", "time_seconds": 1.0, "gain": 0.65},
+        {"sample_id": "vcsl-bass-drum", "time_seconds": 2.0, "gain": 0.75},
+        {"sample_id": "vcsl-snare", "time_seconds": 3.0, "gain": 0.62},
+        {"sample_id": "vcsl-bass-drum", "time_seconds": 4.0, "gain": 0.82},
+        {"sample_id": "vcsl-snare", "time_seconds": 5.0, "gain": 0.67},
+        {"sample_id": "vcsl-bass-drum", "time_seconds": 6.0, "gain": 0.76},
+        {"sample_id": "vcsl-snare", "time_seconds": 7.0, "gain": 0.64}
+      ]
+    }
+  ]
+}
