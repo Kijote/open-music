@@ -21,7 +21,7 @@ def read_wav(path: Path) -> tuple[int, Audio]:
     if sample_width == 1:
         values = (np.frombuffer(data, dtype=np.uint8).astype(np.float64) - 128.0) / 128.0
     elif sample_width == 2:
-        values = np.frombuffer(data, dtype="<i2").astype(np.float64) / 32768.0
+        values = np.clip(\n            np.frombuffer(data, dtype="<i2").astype(np.float64) / 32767.0, -1.0, 1.0\n        )
     elif sample_width == 3:
         raw = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
         integers = (
