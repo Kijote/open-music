@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 ALLOWED_REDISTRIBUTABLE_LICENSES = {"CC0-1.0", "CC-BY-4.0", "CC-BY-3.0"}
 
 
