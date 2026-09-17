@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
-
-import numpy as np
 
 from .core import Event, Sample, match_sample, measure, render
 from .corpus import fetch_corpus, load_manifest
 from .wav import read_wav, resample_linear, write_wav
+
+
+def _report_number(value: float) -> float | str:
+    return value if math.isfinite(value) else "infinity"
 
 
 def run_benchmark(manifest_path: Path, cache_dir: Path, output_dir: Path) -> dict:
@@ -68,7 +71,7 @@ def run_benchmark(manifest_path: Path, cache_dir: Path, output_dir: Path) -> dic
                 "track_id": track["id"],
                 "metrics": {
                     "mean_absolute_error": metrics.mean_absolute_error,
-                    "snr_db": metrics.snr_db,
+                    "snr_db": _report_number(metrics.snr_db),
                     "explained_energy": metrics.explained_energy,
                 },
                 "modularity": {
@@ -83,7 +86,7 @@ def run_benchmark(manifest_path: Path, cache_dir: Path, output_dir: Path) -> dic
 
     report = {"corpus": corpus.id, "tracks": results}
     (output_dir / "metrics.json").write_text(
-        json.dumps(report, indent=2, allow_nan=False).replace("Infinity", '"infinity"'),
+        json.dumps(report, indent=2),
         encoding="utf-8",
     )
     return report
@@ -96,7 +99,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("artifacts/benchmark"))
     args = parser.parse_args()
     report = run_benchmark(args.manifest, args.cache, args.output)
-    print(json.dumps(report, indent=2, default=str))
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":
