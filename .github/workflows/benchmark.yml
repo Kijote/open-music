@@ -33,7 +33,7 @@ jobs:
           for track in report["tracks"]:
               assert track["detection"]["precision"] == 1.0
               assert track["detection"]["recall"] == 1.0
-              assert track["metrics"]["explained_energy"] >= 0.95
+              assert track["metrics"]["explained_energy"] >= 0.999
               assert track["modularity"]["reuse_ratio"] >= 4
           PY
       - uses: actions/upload-artifact@v4
