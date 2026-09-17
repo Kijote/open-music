@@ -13,7 +13,10 @@ SAMPLE_RATE = 8_000
 
 def pulse(frames: int = 320) -> np.ndarray:
     time = np.arange(frames)
-    return np.exp(-time / 35.0) * np.sin(2 * np.pi * time / 17.0)
+    rng = np.random.default_rng(42)
+    transient = rng.standard_normal(frames)
+    transient[0] = 4.0
+    return np.exp(-time / 35.0) * transient
 
 
 def test_detects_repeated_attacks_and_extracts_windows() -> None:
