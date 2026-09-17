@@ -5,8 +5,9 @@ import json
 import math
 from pathlib import Path
 
-from .core import Event, Sample, match_sample, measure, render
+from .core import Event, Sample, measure, render
 from .corpus import fetch_corpus, load_manifest
+from .discovery import detection_metrics, discover_events
 from .wav import read_wav, resample_linear, write_wav
 
 
@@ -33,7 +34,7 @@ def run_benchmark(manifest_path: Path, cache_dir: Path, output_dir: Path) -> dic
     output_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict] = []
     for track in corpus.tracks:
-        events = [
+        expected_events = [
             Event(
                 sample_id=item["sample_id"],
                 start_frame=round(item["time_seconds"] * corpus.target_sample_rate),
@@ -43,21 +44,20 @@ def run_benchmark(manifest_path: Path, cache_dir: Path, output_dir: Path) -> dic
             for item in track["events"]
         ]
         total_frames = round(float(track["duration_seconds"]) * corpus.target_sample_rate)
-        reference = render(library, events, total_frames, corpus.target_sample_rate)
+        reference = render(library, expected_events, total_frames, corpus.target_sample_rate)
 
-        interpreted_events: list[Event] = []
-        for event in events:
-            query = library[event.sample_id].audio
-            match = match_sample(query, library)
-            interpreted_events.append(
-                Event(match.sample_id, event.start_frame, event.gain, event.pan)
-            )
-
+        discovery = discover_events(reference, library, corpus.target_sample_rate)
+        interpreted_events = list(discovery.events)
         reconstruction = render(
             library, interpreted_events, total_frames, corpus.target_sample_rate
         )
         residual = reference - reconstruction
         metrics = measure(reference, reconstruction)
+        detection = detection_metrics(
+            expected_events,
+            interpreted_events,
+            tolerance_frames=1024,
+        )
         used_samples = {event.sample_id for event in interpreted_events}
         stored_frames = sum(library[sample_id].audio.shape[0] for sample_id in used_samples)
 
@@ -74,12 +74,21 @@ def run_benchmark(manifest_path: Path, cache_dir: Path, output_dir: Path) -> dic
                     "snr_db": _report_number(metrics.snr_db),
                     "explained_energy": metrics.explained_energy,
                 },
+                "detection": detection,
+                "discovered_onsets": len(discovery.onset_frames),
+                "mean_match_score": (
+                    sum(discovery.match_scores) / len(discovery.match_scores)
+                    if discovery.match_scores
+                    else 0.0
+                ),
                 "modularity": {
                     "event_count": len(interpreted_events),
                     "unique_module_count": len(used_samples),
                     "stored_sample_seconds": stored_frames / corpus.target_sample_rate,
                     "track_seconds": total_frames / corpus.target_sample_rate,
-                    "reuse_ratio": len(interpreted_events) / len(used_samples),
+                    "reuse_ratio": (
+                        len(interpreted_events) / len(used_samples) if used_samples else 0.0
+                    ),
                 },
             }
         )
