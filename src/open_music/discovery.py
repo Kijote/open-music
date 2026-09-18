@@ -81,22 +81,92 @@ def extract_candidates(
 def repeat_similarity_matrix(
     candidates: Sequence[Audio],
     *,
-    feature_frames: int = 4096,
+    spectral_windows: Sequence[int] = (512, 1024, 2048, 4096),
+    time_offsets: Sequence[int] = (0, 512, 1024, 2048),
 ) -> tuple[tuple[float, ...], ...]:
-    """Compare candidates by normalized magnitude spectra of fixed-size attack windows."""
+    """Compare candidates with normalized multiresolution, time-local spectra."""
+    if not spectral_windows or any(size <= 1 for size in spectral_windows):
+        raise ValueError("spectral windows must contain positive sizes greater than one")
+    if not time_offsets or any(offset < 0 for offset in time_offsets):
+        raise ValueError("time offsets must contain non-negative positions")
+
     features: list[np.ndarray] = []
     for candidate in candidates:
-        mono = _mono(candidate)[:feature_frames]
-        padded = np.zeros(feature_frames, dtype=np.float64)
-        padded[: mono.size] = mono
-        spectrum = np.abs(np.fft.rfft(padded * np.hanning(feature_frames)))
-        norm = float(np.linalg.norm(spectrum))
-        features.append(spectrum / norm if norm else spectrum)
+        mono = _mono(candidate)
+        spectra: list[np.ndarray] = []
+        for window_frames in spectral_windows:
+            window = np.hanning(window_frames)
+            for offset in time_offsets:
+                padded = np.zeros(window_frames, dtype=np.float64)
+                section = mono[offset : offset + window_frames]
+                padded[: section.size] = section
+                spectrum = np.log1p(100.0 * np.abs(np.fft.rfft(padded * window)))
+                norm = float(np.linalg.norm(spectrum))
+                spectra.append(spectrum / norm if norm else spectrum)
+        feature = np.concatenate(spectra)
+        norm = float(np.linalg.norm(feature))
+        features.append(feature / norm if norm else feature)
 
     return tuple(
         tuple(float(np.clip(np.dot(left, right), 0.0, 1.0)) for right in features)
         for left in features
     )
+
+
+def cluster_candidates(
+    similarity_matrix: Sequence[Sequence[float]],
+    *,
+    minimum_similarity: float = 0.989,
+) -> tuple[tuple[int, ...], ...]:
+    """Return deterministic connected components of mutually similar candidates."""
+    size = len(similarity_matrix)
+    if any(len(row) != size for row in similarity_matrix):
+        raise ValueError("similarity matrix must be square")
+
+    parents = list(range(size))
+
+    def root(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    for left in range(size):
+        for right in range(left + 1, size):
+            if similarity_matrix[left][right] >= minimum_similarity:
+                left_root = root(left)
+                right_root = root(right)
+                parents[max(left_root, right_root)] = min(left_root, right_root)
+
+    groups: dict[int, list[int]] = {}
+    for index in range(size):
+        groups.setdefault(root(index), []).append(index)
+    return tuple(tuple(group) for _, group in sorted(groups.items()))
+
+
+def select_canonical_candidates(
+    similarity_matrix: Sequence[Sequence[float]],
+    clusters: Sequence[Sequence[int]],
+) -> tuple[int, ...]:
+    """Select each cluster's medoid; the earliest candidate breaks exact ties."""
+    return tuple(
+        max(
+            cluster,
+            key=lambda candidate: (
+                sum(similarity_matrix[candidate][peer] for peer in cluster),
+                -candidate,
+            ),
+        )
+        for cluster in clusters
+    )
+
+
+def fit_candidate_gain(candidate: Audio, canonical: Audio) -> float:
+    available = min(candidate.shape[0], canonical.shape[0])
+    query = np.asarray(candidate[:available], dtype=np.float64).reshape(-1)
+    source = np.asarray(canonical[:available], dtype=np.float64).reshape(-1)
+    source_energy = float(np.dot(source, source))
+    return max(0.0, float(np.dot(query, source) / source_energy)) if source_energy else 0.0
 
 
 def _stereo(audio: Audio) -> Audio:
@@ -127,6 +197,61 @@ def _fit_at(
     gain = max(0.0, float(np.dot(query, source) / source_energy))
     similarity = float(np.dot(query, source) / np.sqrt(query_energy * source_energy))
     return similarity, gain
+
+
+def fit_module_event(
+    audio: Audio,
+    sample: Sample,
+    onset_frame: int,
+    *,
+    search_radius: int = 512,
+    probe_frames: int = 4096,
+) -> tuple[Event, float]:
+    """Refine a coarse onset and gain for one already-selected module."""
+    mixture = _stereo(audio)
+    first = max(0, onset_frame - search_radius)
+    last = min(mixture.shape[0] - 1, onset_frame + search_radius)
+    best = max(
+        (
+            (*_fit_at(mixture, sample, start, probe_frames), start)
+            for start in range(first, last + 1)
+        ),
+        key=lambda result: (result[0], -abs(result[2] - onset_frame), -result[2]),
+    )
+    similarity, gain, start = best
+    return Event(sample.id, start, gain=gain), similarity
+
+
+def fit_modules_iteratively(
+    audio: Audio,
+    modules: Sequence[Sample],
+    onset_frames: Sequence[int],
+    *,
+    search_radius: int = 512,
+    probe_frames: int = 4096,
+) -> tuple[tuple[Event, ...], Audio, tuple[float, ...]]:
+    """Fit each selected module to the residual and subtract it before the next fit."""
+    if len(modules) != len(onset_frames):
+        raise ValueError("modules and onset frames must have equal length")
+
+    residual = _stereo(audio).copy()
+    events: list[Event] = []
+    scores: list[float] = []
+    for sample, onset in zip(modules, onset_frames, strict=True):
+        event, score = fit_module_event(
+            residual,
+            sample,
+            onset,
+            search_radius=search_radius,
+            probe_frames=probe_frames,
+        )
+        source = _stereo(sample.audio) * event.gain
+        end = min(residual.shape[0], event.start_frame + source.shape[0])
+        if end > event.start_frame:
+            residual[event.start_frame : end] -= source[: end - event.start_frame]
+        events.append(event)
+        scores.append(score)
+    return tuple(events), residual, tuple(scores)
 
 
 def discover_events(

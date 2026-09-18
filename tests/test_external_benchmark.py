@@ -3,8 +3,16 @@ from pathlib import Path
 
 import numpy as np
 
+from open_music import Sample
 from open_music.corpus import load_external_manifest
-from open_music.discovery import repeat_similarity_matrix
+from open_music.discovery import (
+    cluster_candidates,
+    fit_candidate_gain,
+    fit_module_event,
+    fit_modules_iteratively,
+    repeat_similarity_matrix,
+    select_canonical_candidates,
+)
 
 
 def test_external_manifest_has_pinned_cc0_recording() -> None:
@@ -22,7 +30,11 @@ def test_external_manifest_has_pinned_cc0_recording() -> None:
 def test_repeat_similarity_is_symmetric_and_finds_repeats() -> None:
     attack = np.exp(-np.arange(256) / 30.0)[:, None]
     different = np.sin(np.arange(256) * 0.7)[:, None] * np.exp(-np.arange(256) / 30.0)[:, None]
-    matrix = repeat_similarity_matrix((attack, different, attack.copy()), feature_frames=256)
+    matrix = repeat_similarity_matrix(
+        (attack, different, attack.copy()),
+        spectral_windows=(256,),
+        time_offsets=(0,),
+    )
 
     assert matrix[0][0] == 1.0
     assert matrix[0][2] == 1.0
@@ -37,3 +49,59 @@ def test_external_manifest_is_a_recording_not_a_known_event_timeline() -> None:
     assert "assets" not in raw
     assert "tracks" not in raw
     assert "events" not in raw["recordings"][0]
+
+
+def test_clustering_is_transitive_and_canonical_selection_is_deterministic() -> None:
+    matrix = (
+        (1.0, 0.998, 0.2, 0.1),
+        (0.998, 1.0, 0.997, 0.1),
+        (0.2, 0.997, 1.0, 0.1),
+        (0.1, 0.1, 0.1, 1.0),
+    )
+
+    clusters = cluster_candidates(matrix, minimum_similarity=0.995)
+
+    assert clusters == ((0, 1, 2), (3,))
+    assert select_canonical_candidates(matrix, clusters) == (1, 3)
+
+
+def test_candidate_gain_recovers_amplitude_scale() -> None:
+    canonical = np.linspace(-1.0, 1.0, 32)[:, None]
+
+    assert abs(fit_candidate_gain(canonical * 0.4, canonical) - 0.4) < 1e-12
+
+
+def test_module_fit_refines_coarse_onset_and_gain() -> None:
+    canonical = np.zeros((64, 1))
+    canonical[:8, 0] = np.linspace(1.0, 0.1, 8)
+    audio = np.zeros((256, 2))
+    audio[103:167] = canonical * 0.4
+    sample = Sample("module", canonical, 8_000, "CC0-1.0", "generated")
+
+    event, score = fit_module_event(audio, sample, 96, search_radius=16, probe_frames=64)
+
+    assert event.start_frame == 103
+    assert abs(event.gain - 0.4) < 1e-12
+    assert abs(score - 1.0) < 1e-12
+
+
+def test_iterative_module_fit_returns_the_render_residual() -> None:
+    canonical = np.zeros((32, 1))
+    canonical[:4, 0] = (1.0, 0.7, 0.3, 0.1)
+    audio = np.zeros((160, 2))
+    audio[20:52] += canonical * 0.5
+    audio[100:132] += canonical * 0.8
+    sample = Sample("module", canonical, 8_000, "CC0-1.0", "generated")
+
+    events, residual, scores = fit_modules_iteratively(
+        audio,
+        (sample, sample),
+        (16, 96),
+        search_radius=8,
+        probe_frames=32,
+    )
+
+    assert [event.start_frame for event in events] == [20, 100]
+    assert np.allclose([event.gain for event in events], [0.5, 0.8])
+    assert np.allclose(scores, [1.0, 1.0])
+    assert np.allclose(residual, 0.0)

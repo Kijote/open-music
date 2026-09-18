@@ -35,6 +35,9 @@ jobs:
           assert len(recording["candidate_frames"]) == recording["event_count"]
           assert 0.80 <= recording["coverage"]["ratio"] <= 0.90
           assert len(recording["repeat_similarity_matrix"]) == recording["event_count"]
+          assert recording["modules"]["module_count"] == 4
+          assert recording["modules"]["reuse_ratio"] == 2.0
+          assert recording["reconstruction"]["explained_energy"] > 0.70
           PY
       - uses: actions/upload-artifact@v4
         with:

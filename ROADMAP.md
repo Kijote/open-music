@@ -23,9 +23,9 @@
 - [x] Onset detection.
 - [x] Candidate-window extraction.
 - [x] Repeat-similarity diagnostics without a known library.
-- [ ] Similarity clustering without a known library.
-- [ ] Canonical sample selection.
-- [ ] Iterative subtraction and residual analysis.
+- [x] Similarity clustering without a known library.
+- [x] Canonical sample selection.
+- [x] Iterative reconstruction, subtraction, and residual analysis.
 
 ## M3 — Musical transformations
 

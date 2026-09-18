@@ -4,8 +4,18 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
+
+from .core import Sample, measure, render
 from .corpus import fetch_assets, load_external_manifest
-from .discovery import detect_onsets, extract_candidates, repeat_similarity_matrix
+from .discovery import (
+    cluster_candidates,
+    detect_onsets,
+    extract_candidates,
+    fit_modules_iteratively,
+    repeat_similarity_matrix,
+    select_canonical_candidates,
+)
 from .wav import read_wav, write_wav
 
 
@@ -39,6 +49,38 @@ def run_external_benchmark(
         candidates = extract_candidates(audio, onsets, maximum_frames=maximum_frames)
         lengths = [int(candidate.shape[0]) for candidate in candidates]
         covered_frames = _coverage(onsets, lengths, audio.shape[0])
+        similarity = repeat_similarity_matrix(candidates)
+        clusters = cluster_candidates(similarity)
+        canonicals = select_canonical_candidates(similarity, clusters)
+
+        candidate_clusters = {
+            candidate: cluster_index
+            for cluster_index, cluster in enumerate(clusters)
+            for candidate in cluster
+        }
+        library = {
+            f"module-{cluster_index:03d}": Sample(
+                id=f"module-{cluster_index:03d}",
+                audio=candidates[canonical],
+                sample_rate=sample_rate,
+                license=recording.license_spdx,
+                source=f"discovered:{recording.id}:candidate-{canonical:03d}",
+            )
+            for cluster_index, canonical in enumerate(canonicals)
+        }
+        selected_modules = [
+            library[f"module-{candidate_clusters[index]:03d}"] for index in range(len(candidates))
+        ]
+        events, iterative_residual, match_scores = fit_modules_iteratively(
+            audio,
+            selected_modules,
+            onsets,
+        )
+        reconstruction = render(library, events, audio.shape[0], sample_rate)
+        residual = audio - reconstruction
+        if not np.allclose(residual, iterative_residual):
+            raise RuntimeError("iterative residual does not match rendered events")
+        fidelity = measure(audio, reconstruction)
 
         recording_dir = output_dir / recording.id
         write_wav(recording_dir / "source.wav", sample_rate, audio)
@@ -46,6 +88,14 @@ def run_external_benchmark(
             write_wav(
                 recording_dir / "candidates" / f"candidate-{index:03d}.wav", sample_rate, candidate
             )
+        for cluster_index, canonical in enumerate(canonicals):
+            write_wav(
+                recording_dir / "modules" / f"module-{cluster_index:03d}.wav",
+                sample_rate,
+                candidates[canonical],
+            )
+        write_wav(recording_dir / "reconstruction.wav", sample_rate, reconstruction)
+        write_wav(recording_dir / "residual.wav", sample_rate, residual)
 
         duration_seconds = audio.shape[0] / sample_rate
         results.append(
@@ -67,9 +117,31 @@ def run_external_benchmark(
                     "ratio": covered_frames / audio.shape[0] if audio.shape[0] else 0.0,
                 },
                 "repeat_similarity_matrix": [
-                    [round(value, 12) for value in row]
-                    for row in repeat_similarity_matrix(candidates)
+                    [round(value, 12) for value in row] for row in similarity
                 ],
+                "similarity_parameters": {
+                    "spectral_windows": [512, 1024, 2048, 4096],
+                    "time_offsets": [0, 512, 1024, 2048],
+                    "minimum_similarity": 0.989,
+                },
+                "modules": {
+                    "cluster_assignments": [
+                        candidate_clusters[index] for index in range(len(candidates))
+                    ],
+                    "clusters": [list(cluster) for cluster in clusters],
+                    "canonical_candidates": list(canonicals),
+                    "module_count": len(library),
+                    "reuse_ratio": len(events) / len(library) if library else 0.0,
+                    "event_gains": [round(event.gain, 12) for event in events],
+                    "event_frames": [event.start_frame for event in events],
+                    "event_match_scores": [round(score, 12) for score in match_scores],
+                },
+                "reconstruction": {
+                    "mean_absolute_error": fidelity.mean_absolute_error,
+                    "snr_db": fidelity.snr_db,
+                    "explained_energy": fidelity.explained_energy,
+                    "residual_energy": float(np.sum(np.square(residual))),
+                },
             }
         )
 
