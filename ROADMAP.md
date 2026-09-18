@@ -28,7 +28,8 @@
 - [x] Canonical sample selection.
 - [x] Iterative reconstruction, subtraction, and residual analysis.
 - [x] Convergent residual rediscovery with reusable-module filtering.
-- [ ] Tonal/onset-free module discovery for sustained musical material.
+- [x] Lossless granular stream fallback for sustained/onset-free material.
+- [ ] Cluster and transform continuous grains to improve stream modularity.
 
 ## M3 — Musical transformations
 
