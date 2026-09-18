@@ -16,6 +16,7 @@ from .discovery import (
     repeat_similarity_matrix,
     select_canonical_candidates,
 )
+from .listening import write_listening_pack
 from .residual import discover_residual_layers
 from .wav import read_wav, write_wav
 
@@ -121,6 +122,19 @@ def run_external_benchmark(
                 write_wav(pass_dir / "modules" / f"{module.id}.wav", sample_rate, module.audio)
         write_wav(recording_dir / "reconstruction.wav", sample_rate, reconstruction)
         write_wav(recording_dir / "residual.wav", sample_rate, residual)
+        listening = write_listening_pack(
+            recording_dir / "listening",
+            recording.id,
+            sample_rate,
+            source_audio,
+            reconstruction,
+            residual,
+            {
+                "mean_absolute_error": fidelity.mean_absolute_error,
+                "snr_db": fidelity.snr_db,
+                "explained_energy": fidelity.explained_energy,
+            },
+        )
 
         duration_seconds = audio.shape[0] / sample_rate
         results.append(
@@ -197,6 +211,12 @@ def run_external_benchmark(
                         }
                         for residual_pass in residual_discovery.passes
                     ],
+                },
+                "listening": {
+                    "page": f"{recording.id}/listening/index.html",
+                    "blind_assignment": listening["assignment"],
+                    "residual_amplification_gain": listening["residual_amplification_gain"],
+                    "rating_dimensions": listening["rating_dimensions"],
                 },
                 "reconstruction": {
                     "mean_absolute_error": fidelity.mean_absolute_error,

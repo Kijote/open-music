@@ -66,3 +66,12 @@ The external corpus also includes two 6.58-second, 44.1 kHz mono CC0 tracks from
 contrast with the stereo transient percussion loop. The current transient pipeline reconstructs
 neither tonal track, making the aggregate score a regression baseline for sustained-note and
 harmonic-change discovery rather than presenting the percussion result as general performance.
+
+## Listening evaluation
+
+Every external recording artifact contains a `listening/index.html` page and directly playable WAV
+files. The pack includes deterministic blind A/B source and reconstruction files, the true-level
+residual, and a separately labeled peak-normalized residual for hearing low-level artifacts. The
+page records independent 1–5 ratings for timbre, transients, continuity, spatial image, and overall
+similarity. Objective metrics remain available in a collapsed section and do not pre-populate the
+subjective assessment.
