@@ -44,7 +44,9 @@ def run_external_benchmark(
     results: list[dict] = []
 
     for recording in corpus.recordings:
-        sample_rate, audio = read_wav(paths[recording.id])
+        sample_rate, source_audio = read_wav(paths[recording.id])
+        source_channels = int(source_audio.shape[1])
+        audio = np.repeat(source_audio, 2, axis=1) if source_channels == 1 else source_audio
         onsets = detect_onsets(audio, sample_rate)
         maximum_frames = round(maximum_candidate_seconds * sample_rate)
         candidates = extract_candidates(audio, onsets, maximum_frames=maximum_frames)
@@ -96,7 +98,7 @@ def run_external_benchmark(
         fidelity = measure(audio, reconstruction)
 
         recording_dir = output_dir / recording.id
-        write_wav(recording_dir / "source.wav", sample_rate, audio)
+        write_wav(recording_dir / "source.wav", sample_rate, source_audio)
         for index, candidate in enumerate(candidates):
             write_wav(
                 recording_dir / "candidates" / f"candidate-{index:03d}.wav", sample_rate, candidate
@@ -127,7 +129,8 @@ def run_external_benchmark(
                 "source": recording.source,
                 "license": recording.license_spdx,
                 "sample_rate": sample_rate,
-                "channels": int(audio.shape[1]),
+                "channels": source_channels,
+                "analysis_channels": int(audio.shape[1]),
                 "duration_seconds": duration_seconds,
                 "event_count": len(onsets),
                 "event_density_hz": len(onsets) / duration_seconds if duration_seconds else 0.0,
@@ -200,11 +203,37 @@ def run_external_benchmark(
                     "snr_db": fidelity.snr_db,
                     "explained_energy": fidelity.explained_energy,
                     "residual_energy": float(np.sum(np.square(residual))),
+                    "source_energy": float(np.sum(np.square(audio))),
                 },
             }
         )
 
-    report = {"corpus": corpus.id, "recordings": results}
+    source_energy = sum(item["reconstruction"]["source_energy"] for item in results)
+    residual_energy = sum(item["reconstruction"]["residual_energy"] for item in results)
+    total_modules = sum(
+        item["modules"]["module_count"] + item["residual_discovery"]["accepted_module_count"]
+        for item in results
+    )
+    total_events = sum(
+        item["event_count"] + item["residual_discovery"]["accepted_event_count"] for item in results
+    )
+    report = {
+        "corpus": corpus.id,
+        "recordings": results,
+        "aggregate": {
+            "recording_count": len(results),
+            "duration_seconds": sum(item["duration_seconds"] for item in results),
+            "event_count": total_events,
+            "module_count": total_modules,
+            "reuse_ratio": total_events / total_modules if total_modules else 0.0,
+            "source_energy": source_energy,
+            "residual_energy": residual_energy,
+            "explained_energy": (1.0 - residual_energy / source_energy if source_energy else 1.0),
+            "snr_db": (
+                10.0 * np.log10(source_energy / residual_energy) if residual_energy else "infinity"
+            ),
+        },
+    }
     (output_dir / "metrics.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

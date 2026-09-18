@@ -28,6 +28,58 @@
         "retrieved_at": "2026-09-18",
         "description": "Six-second rendered drum loop created with the FluidGMr3 soundfont"
       }
+    },
+    {
+      "id": "wip-loop-track-02",
+      "url": "https://opengameart.org/sites/default/files/wip%20loop%20-%20Track%2002%20%28New%20song%29.wav",
+      "cache_path": "external/wip-loop-track-02.wav",
+      "size": 580400,
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "f85d7dae7b0c193477e33e793246da08096e6bdecb838db75ca7db764f4386c1"
+      },
+      "license": {
+        "spdx": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistributable": true,
+        "derivatives": true,
+        "commercial_use": true
+      },
+      "source": {
+        "provider": "OpenGameArt",
+        "provider_id": "cc0-scraps",
+        "title": "wip loop - Track 02 (New song)",
+        "author": "celestialghost8",
+        "page_url": "https://opengameart.org/content/cc0-scraps",
+        "audio_url": "https://opengameart.org/sites/default/files/wip%20loop%20-%20Track%2002%20%28New%20song%29.wav",
+        "retrieved_at": "2026-09-18"
+      }
+    },
+    {
+      "id": "slowdrum-track-02",
+      "url": "https://opengameart.org/sites/default/files/slowdrum%20-%20Track%2002%20%28New%20song%29.wav",
+      "cache_path": "external/slowdrum-track-02.wav",
+      "size": 580400,
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "a507d3d8c55e2cf8bb93d9adcc49caa3e34c122f9484e636cd60271f9d1f7e6c"
+      },
+      "license": {
+        "spdx": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistributable": true,
+        "derivatives": true,
+        "commercial_use": true
+      },
+      "source": {
+        "provider": "OpenGameArt",
+        "provider_id": "cc0-scraps",
+        "title": "slowdrum - Track 02 (New song)",
+        "author": "celestialghost8",
+        "page_url": "https://opengameart.org/content/cc0-scraps",
+        "audio_url": "https://opengameart.org/sites/default/files/slowdrum%20-%20Track%2002%20%28New%20song%29.wav",
+        "retrieved_at": "2026-09-18"
+      }
     }
   ]
 }

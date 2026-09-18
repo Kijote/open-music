@@ -30,23 +30,30 @@ jobs:
           import json
           report = json.load(open("artifacts/external-benchmark/metrics.json"))
           assert report["corpus"] == "external-cc0-small-v1"
-          recording, = report["recordings"]
-          assert recording["event_count"] == 8
-          assert len(recording["candidate_frames"]) == recording["event_count"]
-          assert 0.80 <= recording["coverage"]["ratio"] <= 0.90
-          assert len(recording["repeat_similarity_matrix"]) == recording["event_count"]
-          assert recording["modules"]["module_count"] == 4
-          assert recording["modules"]["reuse_ratio"] == 2.0
-          assert recording["reconstruction"]["explained_energy"] > 0.70
-          residual = recording["residual_discovery"]
-          assert residual["stop_reason"] in {
-              "no_onsets", "no_reusable_clusters", "insufficient_improvement",
-              "residual_floor", "maximum_passes"
+          by_id = {item["recording_id"]: item for item in report["recordings"]}
+          assert set(by_id) == {
+              "prehistoric-drum-loop", "wip-loop-track-02", "slowdrum-track-02"
           }
-          assert all(
-              item["energy_after"] <= item["energy_before"]
-              for item in residual["passes"]
-          )
+          percussion = by_id["prehistoric-drum-loop"]
+          assert percussion["event_count"] == 8
+          assert percussion["modules"]["module_count"] == 4
+          assert percussion["modules"]["reuse_ratio"] == 2.0
+          assert percussion["reconstruction"]["explained_energy"] >= 0.998
+          for recording in by_id.values():
+              assert len(recording["candidate_frames"]) == recording["event_count"]
+              residual = recording["residual_discovery"]
+              assert residual["stop_reason"] in {
+                  "no_onsets", "no_reusable_clusters", "insufficient_improvement",
+                  "residual_floor", "maximum_passes"
+              }
+              assert all(
+                  item["energy_after"] <= item["energy_before"]
+                  for item in residual["passes"]
+              )
+          assert by_id["wip-loop-track-02"]["channels"] == 1
+          assert by_id["slowdrum-track-02"]["channels"] == 1
+          assert report["aggregate"]["recording_count"] == 3
+          assert report["aggregate"]["explained_energy"] >= 0.38
           PY
       - uses: actions/upload-artifact@v4
         with:
