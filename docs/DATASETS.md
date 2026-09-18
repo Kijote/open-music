@@ -52,5 +52,11 @@ The discovery stage compares time-local spectra at multiple window sizes, cluste
 similarity, selects a deterministic medoid for each cluster, estimates per-event gain, and renders
 a first-pass modular reconstruction. Keeping the spectral scales explicit also provides a baseline
 for later learned embeddings or fine-tuned similarity weights.
-The workflow also publishes each canonical module, the reconstruction, and its residual. These
-metrics establish a transparent baseline for later iterative subtraction of overlapping sources.
+The workflow also publishes each canonical module, the reconstruction, and its residual.
+
+Residual discovery then repeats the same process on the current residual. A residual cluster is
+accepted only when at least two events reuse its canonical module and subtraction produces a
+minimum energy improvement. Singleton clusters are exported for diagnosis but rejected as modules,
+preventing a lower error from being achieved by memorizing each unexplained fragment. The report
+records every pass and one deterministic stopping reason: residual floor, no onsets, no reusable
+clusters, insufficient improvement, or the configured pass limit.

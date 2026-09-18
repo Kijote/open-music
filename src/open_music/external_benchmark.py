@@ -16,6 +16,7 @@ from .discovery import (
     repeat_similarity_matrix,
     select_canonical_candidates,
 )
+from .residual import discover_residual_layers
 from .wav import read_wav, write_wav
 
 
@@ -76,10 +77,22 @@ def run_external_benchmark(
             selected_modules,
             onsets,
         )
-        reconstruction = render(library, events, audio.shape[0], sample_rate)
-        residual = audio - reconstruction
-        if not np.allclose(residual, iterative_residual):
+        initial_reconstruction = render(library, events, audio.shape[0], sample_rate)
+        initial_residual = audio - initial_reconstruction
+        if not np.allclose(initial_residual, iterative_residual):
             raise RuntimeError("iterative residual does not match rendered events")
+        residual_discovery = discover_residual_layers(
+            initial_residual,
+            sample_rate,
+            license_spdx=recording.license_spdx,
+            source_id=recording.id,
+        )
+        library.update({sample.id: sample for sample in residual_discovery.modules})
+        all_events = (*events, *residual_discovery.events)
+        reconstruction = render(library, all_events, audio.shape[0], sample_rate)
+        residual = audio - reconstruction
+        if not np.allclose(residual, residual_discovery.residual):
+            raise RuntimeError("residual discovery does not match rendered events")
         fidelity = measure(audio, reconstruction)
 
         recording_dir = output_dir / recording.id
@@ -94,6 +107,16 @@ def run_external_benchmark(
                 sample_rate,
                 candidates[canonical],
             )
+        for residual_pass in residual_discovery.passes:
+            pass_dir = recording_dir / "residual-discovery" / f"pass-{residual_pass.index:02d}"
+            for index, candidate in enumerate(residual_pass.candidates):
+                write_wav(
+                    pass_dir / "candidates" / f"candidate-{index:03d}.wav",
+                    sample_rate,
+                    candidate,
+                )
+            for module in residual_pass.modules:
+                write_wav(pass_dir / "modules" / f"{module.id}.wav", sample_rate, module.audio)
         write_wav(recording_dir / "reconstruction.wav", sample_rate, reconstruction)
         write_wav(recording_dir / "residual.wav", sample_rate, residual)
 
@@ -135,6 +158,42 @@ def run_external_benchmark(
                     "event_gains": [round(event.gain, 12) for event in events],
                     "event_frames": [event.start_frame for event in events],
                     "event_match_scores": [round(score, 12) for score in match_scores],
+                },
+                "residual_discovery": {
+                    "maximum_passes": 3,
+                    "minimum_cluster_size": 2,
+                    "minimum_improvement_ratio": 1e-6,
+                    "stop_reason": residual_discovery.stop_reason,
+                    "accepted_module_count": len(residual_discovery.modules),
+                    "accepted_event_count": len(residual_discovery.events),
+                    "passes": [
+                        {
+                            "index": residual_pass.index,
+                            "onset_frames": list(residual_pass.onset_frames),
+                            "candidate_count": len(residual_pass.candidates),
+                            "clusters": [list(cluster) for cluster in residual_pass.clusters],
+                            "accepted_clusters": [
+                                list(cluster) for cluster in residual_pass.accepted_clusters
+                            ],
+                            "canonical_candidates": list(residual_pass.canonical_candidates),
+                            "module_ids": [module.id for module in residual_pass.modules],
+                            "event_frames": [event.start_frame for event in residual_pass.events],
+                            "event_gains": [
+                                round(event.gain, 12) for event in residual_pass.events
+                            ],
+                            "match_scores": [
+                                round(score, 12) for score in residual_pass.match_scores
+                            ],
+                            "energy_before": residual_pass.energy_before,
+                            "energy_after": residual_pass.energy_after,
+                            "energy_improvement": (
+                                residual_pass.energy_before - residual_pass.energy_after
+                            ),
+                            "accepted": residual_pass.accepted,
+                            "stop_reason": residual_pass.stop_reason,
+                        }
+                        for residual_pass in residual_discovery.passes
+                    ],
                 },
                 "reconstruction": {
                     "mean_absolute_error": fidelity.mean_absolute_error,
