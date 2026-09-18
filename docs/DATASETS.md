@@ -37,3 +37,15 @@ Freesound is a provider, not one homogeneous license. The first importer must ac
 - **local**: user-owned music that never enters CI or repository history.
 
 The extended benchmark must never make pull-request CI depend on a large or unreliable external download.
+
+## External recording benchmark
+
+`corpus/external-small.json` is intentionally separate from the known-sample corpus. Its first
+recording is the CC0 *Prehistoric Drum Loop* by hornpipe2 from OpenGameArt. The manifest pins the
+downloaded byte size and SHA-256 digest and contains no source samples or event timeline.
+
+The scheduled/manual `external-benchmark.yml` workflow receives only that mixed WAV. It detects
+onsets, exports every candidate window, computes coverage and a repeat-similarity matrix, and
+publishes the source, candidates, and deterministic JSON report as an artifact. This benchmark is
+diagnostic: clustering, canonical sample selection, subtraction, and reconstruction remain later
+module-discovery milestones.

@@ -78,6 +78,27 @@ def extract_candidates(
     return tuple(candidates)
 
 
+def repeat_similarity_matrix(
+    candidates: Sequence[Audio],
+    *,
+    feature_frames: int = 4096,
+) -> tuple[tuple[float, ...], ...]:
+    """Compare candidates by normalized magnitude spectra of fixed-size attack windows."""
+    features: list[np.ndarray] = []
+    for candidate in candidates:
+        mono = _mono(candidate)[:feature_frames]
+        padded = np.zeros(feature_frames, dtype=np.float64)
+        padded[: mono.size] = mono
+        spectrum = np.abs(np.fft.rfft(padded * np.hanning(feature_frames)))
+        norm = float(np.linalg.norm(spectrum))
+        features.append(spectrum / norm if norm else spectrum)
+
+    return tuple(
+        tuple(float(np.clip(np.dot(left, right), 0.0, 1.0)) for right in features)
+        for left in features
+    )
+
+
 def _stereo(audio: Audio) -> Audio:
     values = np.asarray(audio, dtype=np.float64)
     if values.ndim == 1:

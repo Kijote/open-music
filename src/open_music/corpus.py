@@ -30,6 +30,35 @@ class Corpus:
     tracks: tuple[dict[str, Any], ...]
 
 
+@dataclass(frozen=True)
+class ExternalCorpus:
+    id: str
+    recordings: tuple[CorpusAsset, ...]
+
+
+def _load_asset(item: dict[str, Any], ids: set[str]) -> CorpusAsset:
+    license_data = item["license"]
+    spdx = license_data["spdx"]
+    if spdx not in ALLOWED_REDISTRIBUTABLE_LICENSES:
+        raise ValueError(f"license {spdx} is not allowed in the redistributable corpus")
+    required_flags = ("redistributable", "derivatives", "commercial_use")
+    if not all(license_data.get(flag) is True for flag in required_flags):
+        raise ValueError(f"asset {item['id']} does not grant all required rights")
+    if item["id"] in ids:
+        raise ValueError(f"duplicate asset id: {item['id']}")
+    ids.add(item["id"])
+    return CorpusAsset(
+        id=item["id"],
+        url=item["url"],
+        cache_path=item["cache_path"],
+        size=int(item["size"]),
+        checksum_algorithm=item["checksum"]["algorithm"],
+        checksum_value=item["checksum"]["value"],
+        license_spdx=spdx,
+        source=item["source"],
+    )
+
+
 def load_manifest(path: Path) -> Corpus:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if raw.get("schema_version") != 1:
@@ -40,28 +69,7 @@ def load_manifest(path: Path) -> Corpus:
     assets: list[CorpusAsset] = []
     ids: set[str] = set()
     for item in raw["assets"]:
-        license_data = item["license"]
-        spdx = license_data["spdx"]
-        if spdx not in ALLOWED_REDISTRIBUTABLE_LICENSES:
-            raise ValueError(f"license {spdx} is not allowed in the redistributable corpus")
-        required_flags = ("redistributable", "derivatives", "commercial_use")
-        if not all(license_data.get(flag) is True for flag in required_flags):
-            raise ValueError(f"asset {item['id']} does not grant all required rights")
-        if item["id"] in ids:
-            raise ValueError(f"duplicate asset id: {item['id']}")
-        ids.add(item["id"])
-        assets.append(
-            CorpusAsset(
-                id=item["id"],
-                url=item["url"],
-                cache_path=item["cache_path"],
-                size=int(item["size"]),
-                checksum_algorithm=item["checksum"]["algorithm"],
-                checksum_value=item["checksum"]["value"],
-                license_spdx=spdx,
-                source=item["source"],
-            )
-        )
+        assets.append(_load_asset(item, ids))
 
     for track in raw["tracks"]:
         for event in track["events"]:
@@ -74,6 +82,18 @@ def load_manifest(path: Path) -> Corpus:
         assets=tuple(assets),
         tracks=tuple(raw["tracks"]),
     )
+
+
+def load_external_manifest(path: Path) -> ExternalCorpus:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if raw.get("schema_version") != 1:
+        raise ValueError("unsupported external corpus manifest schema")
+    if not raw.get("recordings"):
+        raise ValueError("external corpus must contain recordings")
+
+    ids: set[str] = set()
+    recordings = tuple(_load_asset(item, ids) for item in raw["recordings"])
+    return ExternalCorpus(id=raw["id"], recordings=recordings)
 
 
 def checksum(data: bytes, algorithm: str) -> str:
@@ -94,9 +114,13 @@ def verify_asset(asset: CorpusAsset, data: bytes) -> None:
 
 
 def fetch_corpus(corpus: Corpus, cache_dir: Path) -> dict[str, Path]:
+    return fetch_assets(corpus.assets, cache_dir)
+
+
+def fetch_assets(assets: tuple[CorpusAsset, ...], cache_dir: Path) -> dict[str, Path]:
     resolved: dict[str, Path] = {}
     cache_root = cache_dir.resolve()
-    for asset in corpus.assets:
+    for asset in assets:
         destination = (cache_root / asset.cache_path).resolve()
         if cache_root not in destination.parents:
             raise ValueError(f"unsafe cache path: {asset.cache_path}")

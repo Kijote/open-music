@@ -15,13 +15,14 @@
 - [x] Small openly licensed song/loop evaluation set.
 - [x] Local corpus cache excluded from Git.
 - [x] CI smoke corpus.
-- [ ] Separate scheduled extended benchmark.
+- [x] Separate scheduled external-recording benchmark.
 - [x] Publish benchmark metrics and audio as workflow artifacts.
 
 ## M2 — Module discovery
 
 - [x] Onset detection.
 - [x] Candidate-window extraction.
+- [x] Repeat-similarity diagnostics without a known library.
 - [ ] Similarity clustering without a known library.
 - [ ] Canonical sample selection.
 - [ ] Iterative subtraction and residual analysis.
