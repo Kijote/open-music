@@ -26,6 +26,7 @@
 - [x] Similarity clustering without a known library.
 - [x] Canonical sample selection.
 - [x] Iterative reconstruction, subtraction, and residual analysis.
+- [x] Convergent residual rediscovery with reusable-module filtering.
 
 ## M3 — Musical transformations
 

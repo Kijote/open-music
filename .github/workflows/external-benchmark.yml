@@ -38,6 +38,15 @@ jobs:
           assert recording["modules"]["module_count"] == 4
           assert recording["modules"]["reuse_ratio"] == 2.0
           assert recording["reconstruction"]["explained_energy"] > 0.70
+          residual = recording["residual_discovery"]
+          assert residual["stop_reason"] in {
+              "no_onsets", "no_reusable_clusters", "insufficient_improvement",
+              "residual_floor", "maximum_passes"
+          }
+          assert all(
+              item["energy_after"] <= item["energy_before"]
+              for item in residual["passes"]
+          )
           PY
       - uses: actions/upload-artifact@v4
         with:
