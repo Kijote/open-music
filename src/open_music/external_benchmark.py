@@ -18,6 +18,7 @@ from .discovery import (
 )
 from .listening import write_listening_pack
 from .residual import discover_residual_layers
+from .stream import analyze_stream, render_stream, stream_metrics
 from .wav import read_wav, write_wav
 
 
@@ -92,11 +93,16 @@ def run_external_benchmark(
         )
         library.update({sample.id: sample for sample in residual_discovery.modules})
         all_events = (*events, *residual_discovery.events)
-        reconstruction = render(library, all_events, audio.shape[0], sample_rate)
-        residual = audio - reconstruction
-        if not np.allclose(residual, residual_discovery.residual):
+        event_reconstruction = render(library, all_events, audio.shape[0], sample_rate)
+        event_residual = audio - event_reconstruction
+        if not np.allclose(event_residual, residual_discovery.residual):
             raise RuntimeError("residual discovery does not match rendered events")
+        stream = analyze_stream(event_residual)
+        stream_audio = render_stream(stream)
+        reconstruction = event_reconstruction + stream_audio
+        residual = audio - reconstruction
         fidelity = measure(audio, reconstruction)
+        event_fidelity = measure(audio, event_reconstruction)
 
         recording_dir = output_dir / recording.id
         write_wav(recording_dir / "source.wav", sample_rate, source_audio)
@@ -120,6 +126,21 @@ def run_external_benchmark(
                 )
             for module in residual_pass.modules:
                 write_wav(pass_dir / "modules" / f"{module.id}.wav", sample_rate, module.audio)
+        for module_id, grain in stream.modules.items():
+            write_wav(recording_dir / "stream" / "modules" / f"{module_id}.wav", sample_rate, grain)
+        (recording_dir / "stream" / "timeline.json").write_text(
+            json.dumps(
+                [
+                    {"module_id": event.module_id, "start_frame": event.start_frame}
+                    for event in stream.events
+                ],
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        write_wav(recording_dir / "event-reconstruction.wav", sample_rate, event_reconstruction)
         write_wav(recording_dir / "reconstruction.wav", sample_rate, reconstruction)
         write_wav(recording_dir / "residual.wav", sample_rate, residual)
         listening = write_listening_pack(
@@ -134,6 +155,7 @@ def run_external_benchmark(
                 "snr_db": fidelity.snr_db,
                 "explained_energy": fidelity.explained_energy,
             },
+            event_reconstruction=event_reconstruction,
         )
 
         duration_seconds = audio.shape[0] / sample_rate
@@ -212,6 +234,18 @@ def run_external_benchmark(
                         for residual_pass in residual_discovery.passes
                     ],
                 },
+                "continuous_stream": {
+                    **stream_metrics(stream),
+                    "window_frames": stream.window_frames,
+                    "hop_frames": stream.hop_frames,
+                    "timeline": [
+                        {
+                            "module_id": event.module_id,
+                            "start_frame": event.start_frame,
+                        }
+                        for event in stream.events
+                    ],
+                },
                 "listening": {
                     "page": f"{recording.id}/listening/index.html",
                     "blind_assignment": listening["assignment"],
@@ -225,17 +259,28 @@ def run_external_benchmark(
                     "residual_energy": float(np.sum(np.square(residual))),
                     "source_energy": float(np.sum(np.square(audio))),
                 },
+                "event_only_reconstruction": {
+                    "mean_absolute_error": event_fidelity.mean_absolute_error,
+                    "snr_db": event_fidelity.snr_db,
+                    "explained_energy": event_fidelity.explained_energy,
+                    "residual_energy": float(np.sum(np.square(event_residual))),
+                },
             }
         )
 
     source_energy = sum(item["reconstruction"]["source_energy"] for item in results)
     residual_energy = sum(item["reconstruction"]["residual_energy"] for item in results)
     total_modules = sum(
-        item["modules"]["module_count"] + item["residual_discovery"]["accepted_module_count"]
+        item["modules"]["module_count"]
+        + item["residual_discovery"]["accepted_module_count"]
+        + item["continuous_stream"]["unique_module_count"]
         for item in results
     )
     total_events = sum(
-        item["event_count"] + item["residual_discovery"]["accepted_event_count"] for item in results
+        item["event_count"]
+        + item["residual_discovery"]["accepted_event_count"]
+        + item["continuous_stream"]["event_count"]
+        for item in results
     )
     report = {
         "corpus": corpus.id,

@@ -35,11 +35,22 @@ def _match_channels(audio: Audio, channels: int) -> Audio:
     raise ValueError("unsupported listening channel conversion")
 
 
-def _listening_html(recording_id: str, metrics: dict, answer: dict[str, str]) -> str:
+def _listening_html(
+    recording_id: str,
+    metrics: dict,
+    answer: dict[str, str],
+    has_event_reconstruction: bool,
+) -> str:
     dimensions = "\n".join(
         f"<label>{escape(name.replace('_', ' ').title())}"
         f'<input type="range" min="1" max="5" value="3" data-rating="{name}"></label>'
         for name in RATING_DIMENSIONS
+    )
+    event_player = (
+        "<p>Event-only reconstruction (without continuous stream):</p>"
+        '<audio controls preload="metadata" src="event-only.wav"></audio>'
+        if has_event_reconstruction
+        else ""
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -60,6 +71,7 @@ pre{{white-space:pre-wrap;background:#222;padding:1rem}} .hidden{{display:none}}
 <p><button id="download">Download ratings</button><button id="reveal">Reveal A/B</button></p>
 <pre id="answer" class="hidden"></pre>
 <h2>Artifact inspection</h2>
+{event_player}
 <p>True residual:</p><audio controls preload="metadata" src="residual-true.wav"></audio>
 <p>Peak-normalized residual (amplified for diagnosis):</p>
 <audio controls preload="metadata" src="residual-amplified.wav"></audio>
@@ -95,6 +107,7 @@ def write_listening_pack(
     reconstruction: Audio,
     residual: Audio,
     metrics: dict,
+    event_reconstruction: Audio | None = None,
 ) -> dict:
     channels = 1 if np.asarray(source).ndim == 1 else int(np.asarray(source).shape[1])
     source = _match_channels(source, channels)
@@ -109,6 +122,12 @@ def write_listening_pack(
     write_wav(output_dir / "reconstruction.wav", sample_rate, reconstruction)
     write_wav(output_dir / "residual-true.wav", sample_rate, residual)
     write_wav(output_dir / "residual-amplified.wav", sample_rate, residual * amplified_gain)
+    if event_reconstruction is not None:
+        write_wav(
+            output_dir / "event-only.wav",
+            sample_rate,
+            _match_channels(event_reconstruction, channels),
+        )
     tracks = {"source": source, "reconstruction": reconstruction}
     for filename, identity in assignment.items():
         write_wav(output_dir / filename, sample_rate, tracks[identity])
@@ -123,6 +142,7 @@ def write_listening_pack(
         json.dumps(answer, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     (output_dir / "index.html").write_text(
-        _listening_html(recording_id, metrics, answer), encoding="utf-8"
+        _listening_html(recording_id, metrics, answer, event_reconstruction is not None),
+        encoding="utf-8",
     )
     return answer

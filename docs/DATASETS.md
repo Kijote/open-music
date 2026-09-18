@@ -64,8 +64,10 @@ clusters, insufficient improvement, or the configured pass limit.
 The external corpus also includes two 6.58-second, 44.1 kHz mono CC0 tracks from
 *CC0 Scraps* by celestialghost8: `wip loop - Track 02` and `slowdrum - Track 02`. They deliberately
 contrast with the stereo transient percussion loop. The current transient pipeline reconstructs
-neither tonal track, making the aggregate score a regression baseline for sustained-note and
-harmonic-change discovery rather than presenting the percussion result as general performance.
+neither tonal track with event modules. A normalized overlap-add granular stream now guarantees
+coverage and high-fidelity reconstruction for this material, while reporting its low initial
+modularity honestly through unique-grain count, reuse ratio, and storage ratio. Event-only metrics
+remain in the report so the stream fallback cannot hide the unresolved tonal segmentation problem.
 
 ## Listening evaluation
 

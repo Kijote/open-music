@@ -41,6 +41,8 @@ jobs:
           assert percussion["reconstruction"]["explained_energy"] >= 0.998
           for recording in by_id.values():
               assert len(recording["candidate_frames"]) == recording["event_count"]
+              assert recording["continuous_stream"]["coverage_ratio"] == 1.0
+              assert recording["reconstruction"]["explained_energy"] >= 0.999999
               residual = recording["residual_discovery"]
               assert residual["stop_reason"] in {
                   "no_onsets", "no_reusable_clusters", "insufficient_improvement",
@@ -53,7 +55,7 @@ jobs:
           assert by_id["wip-loop-track-02"]["channels"] == 1
           assert by_id["slowdrum-track-02"]["channels"] == 1
           assert report["aggregate"]["recording_count"] == 3
-          assert report["aggregate"]["explained_energy"] >= 0.38
+          assert report["aggregate"]["explained_energy"] >= 0.999999
           PY
       - uses: actions/upload-artifact@v4
         with:
