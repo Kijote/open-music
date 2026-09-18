@@ -17,6 +17,7 @@
 - [x] CI smoke corpus.
 - [x] Separate scheduled external-recording benchmark.
 - [x] Publish benchmark metrics and audio as workflow artifacts.
+- [x] Publish blind A/B listening packs and subjective rating pages.
 
 ## M2 — Module discovery
 
