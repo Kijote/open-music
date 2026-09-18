@@ -46,6 +46,11 @@ downloaded byte size and SHA-256 digest and contains no source samples or event 
 
 The scheduled/manual `external-benchmark.yml` workflow receives only that mixed WAV. It detects
 onsets, exports every candidate window, computes coverage and a repeat-similarity matrix, and
-publishes the source, candidates, and deterministic JSON report as an artifact. This benchmark is
-diagnostic: clustering, canonical sample selection, subtraction, and reconstruction remain later
-module-discovery milestones.
+publishes the source, candidates, and deterministic JSON report as an artifact.
+
+The discovery stage compares time-local spectra at multiple window sizes, clusters candidates by
+similarity, selects a deterministic medoid for each cluster, estimates per-event gain, and renders
+a first-pass modular reconstruction. Keeping the spectral scales explicit also provides a baseline
+for later learned embeddings or fine-tuned similarity weights.
+The workflow also publishes each canonical module, the reconstruction, and its residual. These
+metrics establish a transparent baseline for later iterative subtraction of overlapping sources.
