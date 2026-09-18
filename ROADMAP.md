@@ -27,6 +27,7 @@
 - [x] Canonical sample selection.
 - [x] Iterative reconstruction, subtraction, and residual analysis.
 - [x] Convergent residual rediscovery with reusable-module filtering.
+- [ ] Tonal/onset-free module discovery for sustained musical material.
 
 ## M3 — Musical transformations
 

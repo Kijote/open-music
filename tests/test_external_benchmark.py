@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from open_music import Sample
-from open_music.corpus import load_external_manifest
+from open_music.corpus import checksum, load_external_manifest
 from open_music.discovery import (
     cluster_candidates,
     fit_candidate_gain,
@@ -13,6 +13,8 @@ from open_music.discovery import (
     repeat_similarity_matrix,
     select_canonical_candidates,
 )
+from open_music.external_benchmark import run_external_benchmark
+from open_music.wav import write_wav
 
 
 def test_external_manifest_has_pinned_cc0_recording() -> None:
@@ -25,6 +27,12 @@ def test_external_manifest_has_pinned_cc0_recording() -> None:
     assert len(recording.checksum_value) == 64
     assert recording.license_spdx == "CC0-1.0"
     assert recording.source["author"] == "hornpipe2"
+    assert {item.id for item in corpus.recordings} == {
+        "prehistoric-drum-loop",
+        "wip-loop-track-02",
+        "slowdrum-track-02",
+    }
+    assert all(len(item.checksum_value) == 64 for item in corpus.recordings)
 
 
 def test_repeat_similarity_is_symmetric_and_finds_repeats() -> None:
@@ -105,3 +113,40 @@ def test_iterative_module_fit_returns_the_render_residual() -> None:
     assert np.allclose([event.gain for event in events], [0.5, 0.8])
     assert np.allclose(scores, [1.0, 1.0])
     assert np.allclose(residual, 0.0)
+
+
+def test_external_benchmark_normalizes_mono_for_analysis(tmp_path: Path) -> None:
+    cache = tmp_path / "cache"
+    source_path = cache / "mono.wav"
+    mono = np.zeros((2_000, 1))
+    write_wav(source_path, 8_000, mono)
+    data = source_path.read_bytes()
+    manifest = {
+        "schema_version": 1,
+        "id": "mono-test",
+        "recordings": [
+            {
+                "id": "mono",
+                "url": source_path.as_uri(),
+                "cache_path": "mono.wav",
+                "size": len(data),
+                "checksum": {"algorithm": "sha256", "value": checksum(data, "sha256")},
+                "license": {
+                    "spdx": "CC0-1.0",
+                    "redistributable": True,
+                    "derivatives": True,
+                    "commercial_use": True,
+                },
+                "source": {"author": "generated"},
+            }
+        ],
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    report = run_external_benchmark(manifest_path, cache, tmp_path / "output")
+    recording = report["recordings"][0]
+
+    assert recording["channels"] == 1
+    assert recording["analysis_channels"] == 2
+    assert report["aggregate"]["recording_count"] == 1

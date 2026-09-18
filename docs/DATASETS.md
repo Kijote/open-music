@@ -60,3 +60,9 @@ minimum energy improvement. Singleton clusters are exported for diagnosis but re
 preventing a lower error from being achieved by memorizing each unexplained fragment. The report
 records every pass and one deterministic stopping reason: residual floor, no onsets, no reusable
 clusters, insufficient improvement, or the configured pass limit.
+
+The external corpus also includes two 6.58-second, 44.1 kHz mono CC0 tracks from
+*CC0 Scraps* by celestialghost8: `wip loop - Track 02` and `slowdrum - Track 02`. They deliberately
+contrast with the stereo transient percussion loop. The current transient pipeline reconstructs
+neither tonal track, making the aggregate score a regression baseline for sustained-note and
+harmonic-change discovery rather than presenting the percussion result as general performance.
