@@ -156,6 +156,7 @@ def run_external_benchmark(
                 "explained_energy": fidelity.explained_energy,
             },
             event_reconstruction=event_reconstruction,
+            structural_residual=event_residual,
         )
 
         duration_seconds = audio.shape[0] / sample_rate
@@ -249,7 +250,8 @@ def run_external_benchmark(
                 "listening": {
                     "page": f"{recording.id}/listening/index.html",
                     "blind_assignment": listening["assignment"],
-                    "residual_amplification_gain": listening["residual_amplification_gain"],
+                    "final_residual": listening["final_residual"],
+                    "structural_residual": listening["structural_residual"],
                     "rating_dimensions": listening["rating_dimensions"],
                 },
                 "reconstruction": {

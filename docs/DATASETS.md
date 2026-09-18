@@ -77,3 +77,8 @@ residual, and a separately labeled peak-normalized residual for hearing low-leve
 page records independent 1–5 ratings for timbre, transients, continuity, spatial image, and overall
 similarity. Objective metrics remain available in a collapsed section and do not pre-populate the
 subjective assessment.
+
+Residuals are labeled by stage. The event-layer residual is structural input to the continuous
+stream and remains available for listening. The final post-stream residual is classified as a
+numerical floor when its energy is below `1e-12` of source energy; numerical floors are never
+peak-normalized, preventing floating-point rounding artifacts from being presented as sound.
