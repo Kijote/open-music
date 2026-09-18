@@ -1,0 +1,43 @@
+name: External recording benchmark
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  external-cc0-small:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/cache@v4
+        with:
+          path: corpus/cache
+          key: open-music-external-${{ hashFiles('corpus/external-small.json') }}
+      - run: pip install -e ".[dev]"
+      - name: Discover candidates from the external mixed recording
+        run: open-music-external-benchmark
+      - name: Verify diagnostic baseline
+        run: |
+          python - <<'PY'
+          import json
+          report = json.load(open("artifacts/external-benchmark/metrics.json"))
+          assert report["corpus"] == "external-cc0-small-v1"
+          recording, = report["recordings"]
+          assert recording["event_count"] == 8
+          assert len(recording["candidate_frames"]) == recording["event_count"]
+          assert 0.80 <= recording["coverage"]["ratio"] <= 0.90
+          assert len(recording["repeat_similarity_matrix"]) == recording["event_count"]
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-music-external-benchmark-${{ github.sha }}
+          path: artifacts/external-benchmark
+          if-no-files-found: error

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "external-cc0-small-v1",
+  "recordings": [
+    {
+      "id": "prehistoric-drum-loop",
+      "url": "https://opengameart.org/sites/default/files/select.wav",
+      "cache_path": "external/prehistoric-drum-loop.wav",
+      "size": 996880,
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "01bc4e68bdc217cb4df6563f1a4eb9034a4427e859f03c292e845af748a0b1e5"
+      },
+      "license": {
+        "spdx": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistributable": true,
+        "derivatives": true,
+        "commercial_use": true
+      },
+      "source": {
+        "provider": "OpenGameArt",
+        "provider_id": "prehistoric-drum-loop",
+        "title": "Prehistoric Drum Loop",
+        "author": "hornpipe2",
+        "page_url": "https://opengameart.org/content/prehistoric-drum-loop",
+        "audio_url": "https://opengameart.org/sites/default/files/select.wav",
+        "retrieved_at": "2026-09-18",
+        "description": "Six-second rendered drum loop created with the FluidGMr3 soundfont"
+      }
+    }
+  ]
+}

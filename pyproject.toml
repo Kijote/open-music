@@ -16,6 +16,7 @@ dev = ["pytest>=8.0,<9", "ruff>=0.12,<1"]
 
 [project.scripts]
 open-music-benchmark = "open_music.benchmark:main"
+open-music-external-benchmark = "open_music.external_benchmark:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/open_music"]
