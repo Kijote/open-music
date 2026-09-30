@@ -63,12 +63,23 @@ def _align(target: np.ndarray, candidate: np.ndarray, maximum_lag: int) -> tuple
     size = max(target.size, candidate.size)
     left = np.pad(target, (0, size - target.size))
     right = np.pad(candidate, (0, size - candidate.size))
+    fft_size = 1 << (2 * size - 1).bit_length()
+    correlation = np.fft.irfft(
+        np.fft.rfft(left, fft_size) * np.conj(np.fft.rfft(right, fft_size)),
+        fft_size,
+    )
+    prefix_energy = np.concatenate(([0.0], np.cumsum(right**2)))
+    left_norm = float(np.linalg.norm(left))
     best_lag = 0
     best_score = float("-inf")
     for lag in range(-maximum_lag, maximum_lag + 1):
-        shifted = _shift(right, lag)
-        denominator = float(np.linalg.norm(left) * np.linalg.norm(shifted))
-        score = float(np.dot(left, shifted) / denominator) if denominator else 0.0
+        correlation_index = lag if lag >= 0 else fft_size + lag
+        if lag >= 0:
+            shifted_energy = prefix_energy[size - lag]
+        else:
+            shifted_energy = prefix_energy[size] - prefix_energy[-lag]
+        denominator = left_norm * float(np.sqrt(max(shifted_energy, 0.0)))
+        score = float(correlation[correlation_index] / denominator) if denominator else 0.0
         if score > best_score:
             best_score = score
             best_lag = lag
