@@ -27,6 +27,7 @@ class ResolutionValidation:
     maximum_spectral_error: float
     p95_log_energy_error: float
     maximum_incompatible_run: int
+    incompatible_spans: tuple[tuple[int, int], ...]
     accepted: bool
 
 
@@ -39,6 +40,7 @@ class ReplacementValidation:
     duration_ratio: float
     resolutions: tuple[ResolutionValidation, ...]
     rejection_reasons: tuple[str, ...]
+    suggested_split_frames: tuple[int, ...]
 
 
 def _mono(audio: Audio) -> np.ndarray:
@@ -74,8 +76,19 @@ def _align(target: np.ndarray, candidate: np.ndarray, maximum_lag: int) -> tuple
 
 
 def _fit_gain(target: np.ndarray, candidate: np.ndarray) -> float:
-    energy = float(np.dot(candidate, candidate))
-    return max(0.0, float(np.dot(target, candidate) / energy)) if energy else 0.0
+    # A least-squares gain lets one incompatible region bias every compatible
+    # frame. Use the median local RMS ratio so a local note/envelope mismatch
+    # remains local instead of globally rescaling the candidate.
+    frame_size = min(256, target.size)
+    ratios: list[float] = []
+    for start in range(0, target.size, frame_size):
+        left = target[start : start + frame_size]
+        right = candidate[start : start + frame_size]
+        left_rms = float(np.sqrt(np.mean(left**2)))
+        right_rms = float(np.sqrt(np.mean(right**2)))
+        if left_rms > 1e-12 and right_rms > 1e-12:
+            ratios.append(left_rms / right_rms)
+    return float(np.median(ratios)) if ratios else 0.0
 
 
 def _frames(values: np.ndarray, fft_size: int, hop_size: int) -> np.ndarray:
@@ -96,6 +109,20 @@ def _longest_true_run(mask: np.ndarray) -> int:
         current = current + 1 if bool(value) else 0
         longest = max(longest, current)
     return longest
+
+
+def _true_runs(mask: np.ndarray) -> tuple[tuple[int, int], ...]:
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, value in enumerate(mask):
+        if bool(value) and start is None:
+            start = index
+        elif not bool(value) and start is not None:
+            runs.append((start, index))
+            start = None
+    if start is not None:
+        runs.append((start, mask.size))
+    return tuple(runs)
 
 
 def _resolution_validation(
@@ -146,6 +173,7 @@ def _resolution_validation(
         maximum_spectral_error=float(np.max(spectral_error)),
         p95_log_energy_error=float(np.quantile(log_energy_error, 0.95)),
         maximum_incompatible_run=maximum_run,
+        incompatible_spans=_true_runs(incompatible),
         accepted=accepted,
     )
 
@@ -197,6 +225,19 @@ def validate_replacement(
     local_score = min(resolution.compatible_ratio for resolution in resolutions)
     spectral_score = 1.0 - max(resolution.p95_spectral_error for resolution in resolutions)
     score = float(np.clip(min(duration_ratio, local_score, spectral_score), 0.0, 1.0))
+    split_frames = sorted(
+        {
+            boundary
+            for resolution in resolutions
+            if not resolution.accepted
+            for start, end in resolution.incompatible_spans
+            for boundary in (
+                start * resolution.hop_size,
+                end * resolution.hop_size + resolution.fft_size,
+            )
+            if 0 < boundary < padded_target.size
+        }
+    )
     return ReplacementValidation(
         accepted=accepted,
         score=score,
@@ -205,4 +246,5 @@ def validate_replacement(
         duration_ratio=duration_ratio,
         resolutions=resolutions,
         rejection_reasons=tuple(reasons),
+        suggested_split_frames=tuple(split_frames),
     )
