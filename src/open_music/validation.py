@@ -43,6 +43,25 @@ class ReplacementValidation:
     suggested_split_frames: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class AdaptiveSegment:
+    target_start: int
+    target_end: int
+    candidate_start: int
+    candidate_end: int
+    depth: int
+    accepted: bool
+    score: float
+    rejection_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AdaptiveValidation:
+    segments: tuple[AdaptiveSegment, ...]
+    accepted_target_ratio: float
+    fully_accepted: bool
+
+
 def _mono(audio: Audio) -> np.ndarray:
     values = np.asarray(audio, dtype=np.float64)
     if values.ndim == 1:
@@ -259,3 +278,92 @@ def validate_replacement(
         rejection_reasons=tuple(reasons),
         suggested_split_frames=tuple(split_frames),
     )
+
+
+def validate_with_adaptive_subdivision(
+    target: Audio,
+    candidate: Audio,
+    *,
+    minimum_segment_frames: int = 512,
+    maximum_depth: int = 4,
+    fft_sizes: tuple[int, ...] = (256, 1024, 4096),
+    maximum_lag_frames: int = 256,
+    thresholds: ValidationThresholds | None = None,
+) -> AdaptiveValidation:
+    """Validate compatible subregions without globally shrinking every event."""
+    if minimum_segment_frames <= 0:
+        raise ValueError("minimum_segment_frames must be positive")
+    if maximum_depth < 0:
+        raise ValueError("maximum_depth cannot be negative")
+    target_values = np.asarray(target, dtype=np.float64)
+    candidate_values = np.asarray(candidate, dtype=np.float64)
+    segments: list[AdaptiveSegment] = []
+
+    def visit(
+        target_start: int,
+        target_end: int,
+        candidate_start: int,
+        candidate_end: int,
+        depth: int,
+    ) -> None:
+        target_section = target_values[target_start:target_end]
+        candidate_section = candidate_values[candidate_start:candidate_end]
+        result = validate_replacement(
+            target_section,
+            candidate_section,
+            fft_sizes=fft_sizes,
+            maximum_lag_frames=maximum_lag_frames,
+            thresholds=thresholds,
+        )
+        target_length = target_end - target_start
+        candidate_length = candidate_end - candidate_start
+        can_split = (
+            not result.accepted
+            and depth < maximum_depth
+            and target_length >= 2 * minimum_segment_frames
+            and candidate_length >= 2 * minimum_segment_frames
+        )
+        valid_splits = [
+            frame
+            for frame in result.suggested_split_frames
+            if minimum_segment_frames <= frame <= target_length - minimum_segment_frames
+        ]
+        if can_split and valid_splits:
+            target_split = min(valid_splits, key=lambda frame: abs(frame - target_length / 2))
+            candidate_split = round(target_split * candidate_length / target_length)
+            if minimum_segment_frames <= candidate_split <= candidate_length - minimum_segment_frames:
+                visit(
+                    target_start,
+                    target_start + target_split,
+                    candidate_start,
+                    candidate_start + candidate_split,
+                    depth + 1,
+                )
+                visit(
+                    target_start + target_split,
+                    target_end,
+                    candidate_start + candidate_split,
+                    candidate_end,
+                    depth + 1,
+                )
+                return
+        segments.append(
+            AdaptiveSegment(
+                target_start=target_start,
+                target_end=target_end,
+                candidate_start=candidate_start,
+                candidate_end=candidate_end,
+                depth=depth,
+                accepted=result.accepted,
+                score=result.score,
+                rejection_reasons=result.rejection_reasons,
+            )
+        )
+
+    visit(0, target_values.shape[0], 0, candidate_values.shape[0], 0)
+    accepted_frames = sum(
+        segment.target_end - segment.target_start for segment in segments if segment.accepted
+    )
+    total_frames = target_values.shape[0]
+    ratio = accepted_frames / total_frames if total_frames else 0.0
+    return AdaptiveValidation(tuple(segments), ratio, bool(segments) and ratio == 1.0)
