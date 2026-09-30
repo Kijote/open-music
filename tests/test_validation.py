@@ -3,6 +3,7 @@ import numpy as np
 from open_music.discovery import cluster_candidates, repeat_similarity_matrix
 from open_music.validation import (
     ValidationThresholds,
+    materialize_adaptive_replacement,
     validate_replacement,
     validate_with_adaptive_subdivision,
 )
@@ -129,3 +130,25 @@ def test_adaptive_subdivision_preserves_compatible_regions() -> None:
     assert any(segment.accepted for segment in result.segments)
     assert any(not segment.accepted for segment in result.segments)
     assert 0.4 <= result.accepted_target_ratio < 1.0
+
+
+def test_materialized_adaptive_replacement_preserves_rejected_audio_as_residual() -> None:
+    low = tone(180, frames=4096)
+    middle = tone(420, frames=4096)
+    target = np.concatenate((low, middle, low))
+    candidate = np.concatenate((low, tone(760, frames=4096), low))
+
+    result = materialize_adaptive_replacement(
+        target,
+        candidate,
+        crossfade_frames=64,
+        minimum_segment_frames=1024,
+        maximum_depth=4,
+        maximum_lag_frames=0,
+    )
+
+    assert np.allclose(result.event_only + result.residual, target)
+    assert np.max(np.abs(result.event_only[4096:8192])) < 1e-12
+    assert np.sum(result.event_only[:4096] ** 2) > 0.0
+    assert np.sum(result.event_only[8192:] ** 2) > 0.0
+    assert 0.4 <= result.covered_frame_ratio < 1.0
