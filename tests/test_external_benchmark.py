@@ -59,7 +59,7 @@ def test_external_manifest_is_a_recording_not_a_known_event_timeline() -> None:
     assert "events" not in raw["recordings"][0]
 
 
-def test_clustering_is_transitive_and_canonical_selection_is_deterministic() -> None:
+def test_clustering_requires_pairwise_similarity_and_selects_deterministically() -> None:
     matrix = (
         (1.0, 0.998, 0.2, 0.1),
         (0.998, 1.0, 0.997, 0.1),
@@ -69,8 +69,8 @@ def test_clustering_is_transitive_and_canonical_selection_is_deterministic() -> 
 
     clusters = cluster_candidates(matrix, minimum_similarity=0.995)
 
-    assert clusters == ((0, 1, 2), (3,))
-    assert select_canonical_candidates(matrix, clusters) == (1, 3)
+    assert clusters == ((0, 1), (2,), (3,))
+    assert select_canonical_candidates(matrix, clusters) == (0, 2, 3)
 
 
 def test_candidate_gain_recovers_amplitude_scale() -> None:
