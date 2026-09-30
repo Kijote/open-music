@@ -39,7 +39,7 @@ OpenMusicDocument
 └── residual = reference - approximation
 ```
 
-See [VISION.md](VISION.md), [ROADMAP.md](ROADMAP.md), and [docs/DATASETS.md](docs/DATASETS.md).
+See [VISION.md](VISION.md), [ROADMAP.md](ROADMAP.md), [docs/DATASETS.md](docs/DATASETS.md), and the engineering record [Findings, failures, and next steps](docs/FINDINGS_FAILURES_AND_NEXT_STEPS.md).
 
 ## License
 
