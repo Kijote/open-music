@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .core import Audio, Event, Sample
+from .validation import validate_replacement
 
 
 @dataclass(frozen=True)
@@ -81,36 +82,35 @@ def extract_candidates(
 def repeat_similarity_matrix(
     candidates: Sequence[Audio],
     *,
-    spectral_windows: Sequence[int] = (512, 1024, 2048, 4096),
+    spectral_windows: Sequence[int] = (256, 1024, 4096),
     time_offsets: Sequence[int] = (0, 512, 1024, 2048),
 ) -> tuple[tuple[float, ...], ...]:
-    """Compare candidates with normalized multiresolution, time-local spectra."""
+    """Compare candidates using non-compensating local time-frequency validation.
+
+    This score is intended for candidate retrieval. Replacement acceptance must
+    still inspect ``validate_replacement`` and its per-resolution diagnostics.
+    No spectrum is averaged over time.
+    """
     if not spectral_windows or any(size <= 1 for size in spectral_windows):
         raise ValueError("spectral windows must contain positive sizes greater than one")
     if not time_offsets or any(offset < 0 for offset in time_offsets):
         raise ValueError("time offsets must contain non-negative positions")
 
-    features: list[np.ndarray] = []
-    for candidate in candidates:
-        mono = _mono(candidate)
-        spectra: list[np.ndarray] = []
-        for window_frames in spectral_windows:
-            window = np.hanning(window_frames)
-            for offset in time_offsets:
-                padded = np.zeros(window_frames, dtype=np.float64)
-                section = mono[offset : offset + window_frames]
-                padded[: section.size] = section
-                spectrum = np.log1p(100.0 * np.abs(np.fft.rfft(padded * window)))
-                norm = float(np.linalg.norm(spectrum))
-                spectra.append(spectrum / norm if norm else spectrum)
-        feature = np.concatenate(spectra)
-        norm = float(np.linalg.norm(feature))
-        features.append(feature / norm if norm else feature)
-
-    return tuple(
-        tuple(float(np.clip(np.dot(left, right), 0.0, 1.0)) for right in features)
-        for left in features
-    )
+    size = len(candidates)
+    matrix = np.eye(size, dtype=np.float64)
+    maximum_lag = min(max(time_offsets), min(spectral_windows))
+    fft_sizes = tuple(int(value) for value in spectral_windows)
+    for left in range(size):
+        for right in range(left + 1, size):
+            result = validate_replacement(
+                candidates[left],
+                candidates[right],
+                fft_sizes=fft_sizes,
+                maximum_lag_frames=maximum_lag,
+            )
+            matrix[left, right] = result.score
+            matrix[right, left] = result.score
+    return tuple(tuple(float(value) for value in row) for row in matrix)
 
 
 def cluster_candidates(
@@ -118,30 +118,33 @@ def cluster_candidates(
     *,
     minimum_similarity: float = 0.989,
 ) -> tuple[tuple[int, ...], ...]:
-    """Return deterministic connected components of mutually similar candidates."""
+    """Return deterministic complete-link groups of mutually similar candidates.
+
+    A candidate may join a group only when it is compatible with every existing
+    member. This deliberately rejects the invalid A≈B, B≈C ⇒ A≈C assumption.
+    """
     size = len(similarity_matrix)
     if any(len(row) != size for row in similarity_matrix):
         raise ValueError("similarity matrix must be square")
 
-    parents = list(range(size))
-
-    def root(index: int) -> int:
-        while parents[index] != index:
-            parents[index] = parents[parents[index]]
-            index = parents[index]
-        return index
-
-    for left in range(size):
-        for right in range(left + 1, size):
-            if similarity_matrix[left][right] >= minimum_similarity:
-                left_root = root(left)
-                right_root = root(right)
-                parents[max(left_root, right_root)] = min(left_root, right_root)
-
-    groups: dict[int, list[int]] = {}
-    for index in range(size):
-        groups.setdefault(root(index), []).append(index)
-    return tuple(tuple(group) for _, group in sorted(groups.items()))
+    groups: list[list[int]] = []
+    for candidate in range(size):
+        destination = next(
+            (
+                group
+                for group in groups
+                if all(
+                    similarity_matrix[candidate][member] >= minimum_similarity
+                    for member in group
+                )
+            ),
+            None,
+        )
+        if destination is None:
+            groups.append([candidate])
+        else:
+            destination.append(candidate)
+    return tuple(tuple(group) for group in groups)
 
 
 def select_canonical_candidates(
