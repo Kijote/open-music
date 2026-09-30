@@ -28,25 +28,47 @@ def harmonic_family_descriptor(
     """Describe harmonic shape and ordered envelope without absolute pitch."""
     if maximum_harmonic < 2 or temporal_cells < 2:
         raise ValueError("descriptor dimensions must be at least two")
-    profile = np.zeros(maximum_harmonic, dtype=np.float64)
+    profile = np.zeros((maximum_harmonic, temporal_cells), dtype=np.float64)
+    values = np.asarray(family.audio, dtype=np.float64)
+    mono_size = values.shape[0]
+    start = max(0, family.start_frame * decomposition.hop_size)
+    end = min(mono_size, family.end_frame * decomposition.hop_size + decomposition.fft_size)
+    boundaries = np.linspace(start, end, temporal_cells + 1, dtype=int)
     for member in family.members:
         if member.harmonic_number <= maximum_harmonic:
-            energy = decomposition.tracks[member.component_index].spectral_energy
-            profile[member.harmonic_number - 1] = np.sqrt(energy)
+            component = np.asarray(decomposition.components[member.component_index])
+            mono_component = (
+                component if component.ndim == 1 else np.mean(component, axis=1)
+            )
+            profile[member.harmonic_number - 1] = [
+                float(
+                    np.sqrt(
+                        np.mean(
+                            mono_component[boundaries[index] : boundaries[index + 1]] ** 2
+                        )
+                    )
+                )
+                if boundaries[index + 1] > boundaries[index]
+                else 0.0
+                for index in range(temporal_cells)
+            ]
     profile_norm = float(np.linalg.norm(profile))
     if profile_norm:
         profile /= profile_norm
 
-    values = np.asarray(family.audio, dtype=np.float64)
     mono = values if values.ndim == 1 else np.mean(values, axis=1)
-    start = max(0, family.start_frame * decomposition.hop_size)
-    end = min(mono.size, family.end_frame * decomposition.hop_size + decomposition.fft_size)
     active = mono[start:end]
-    boundaries = np.linspace(0, active.size, temporal_cells + 1, dtype=int)
+    active_boundaries = np.linspace(0, active.size, temporal_cells + 1, dtype=int)
     envelope = np.asarray(
         [
-            float(np.sqrt(np.mean(active[boundaries[index] : boundaries[index + 1]] ** 2)))
-            if boundaries[index + 1] > boundaries[index]
+            float(
+                np.sqrt(
+                    np.mean(
+                        active[active_boundaries[index] : active_boundaries[index + 1]] ** 2
+                    )
+                )
+            )
+            if active_boundaries[index + 1] > active_boundaries[index]
             else 0.0
             for index in range(temporal_cells)
         ]
@@ -54,7 +76,7 @@ def harmonic_family_descriptor(
     envelope_norm = float(np.linalg.norm(envelope))
     if envelope_norm:
         envelope /= envelope_norm
-    descriptor = np.concatenate((profile, envelope))
+    descriptor = np.concatenate((profile.reshape(-1), envelope))
     norm = float(np.linalg.norm(descriptor))
     return descriptor / norm if norm else descriptor
 
