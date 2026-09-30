@@ -108,8 +108,9 @@ def repeat_similarity_matrix(
                 fft_sizes=fft_sizes,
                 maximum_lag_frames=maximum_lag,
             )
-            matrix[left, right] = result.score
-            matrix[right, left] = result.score
+            score = 1.0 if np.isclose(result.score, 1.0, atol=1e-12) else result.score
+            matrix[left, right] = score
+            matrix[right, left] = score
     return tuple(tuple(float(value) for value in row) for row in matrix)
 
 
