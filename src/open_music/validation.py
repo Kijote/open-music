@@ -176,8 +176,15 @@ def _resolution_validation(
     target_spectra = np.log1p(np.abs(np.fft.rfft(target_frames * window, axis=1)))
     candidate_spectra = np.log1p(np.abs(np.fft.rfft(candidate_frames * window, axis=1)))
     products = np.sum(target_spectra * candidate_spectra, axis=1)
-    norms = np.linalg.norm(target_spectra, axis=1) * np.linalg.norm(candidate_spectra, axis=1)
+    target_norms = np.linalg.norm(target_spectra, axis=1)
+    candidate_norms = np.linalg.norm(candidate_spectra, axis=1)
+    norms = target_norms * candidate_norms
     similarities = np.divide(products, norms, out=np.zeros_like(products), where=norms > 0)
+    # Matching silence is compatible. Only a one-sided silent frame is a
+    # mismatch; treating two zero spectra as cosine zero creates false cuts in
+    # the tails between real attacks.
+    both_silent = (target_norms <= 1e-12) & (candidate_norms <= 1e-12)
+    similarities[both_silent] = 1.0
     spectral_error = 1.0 - np.clip(similarities, 0.0, 1.0)
 
     target_energy = np.sqrt(np.mean(target_frames**2, axis=1) + 1e-15)
