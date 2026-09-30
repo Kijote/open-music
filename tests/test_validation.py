@@ -18,6 +18,16 @@ def test_accepts_identical_signal_and_explicit_gain() -> None:
     assert abs(result.gain - 2.0) < 1e-6
 
 
+def test_accepts_bounded_temporal_alignment_as_explicit_transform() -> None:
+    reference = tone(220)
+    delayed = np.pad(reference[:-80], (80, 0))
+
+    result = validate_replacement(reference, delayed, maximum_lag_frames=128)
+
+    assert result.accepted
+    assert result.lag_frames == -80
+
+
 def test_rejects_equal_average_spectrum_with_reversed_temporal_order() -> None:
     low = tone(180, frames=4096)
     high = tone(620, frames=4096)
