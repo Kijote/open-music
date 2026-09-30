@@ -44,6 +44,7 @@ def test_explicit_transformation_validates_transposed_family() -> None:
         220,
         330,
         fft_size=1024,
+        validation_fft_sizes=(256,),
         maximum_lag_frames=32,
     )
 
