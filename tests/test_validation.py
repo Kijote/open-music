@@ -1,6 +1,10 @@
 import numpy as np
 
-from open_music.validation import ValidationThresholds, validate_replacement
+from open_music.validation import (
+    ValidationThresholds,
+    validate_replacement,
+    validate_with_adaptive_subdivision,
+)
 from open_music.discovery import cluster_candidates, repeat_similarity_matrix
 
 
@@ -105,3 +109,23 @@ def test_repeat_similarity_preserves_temporal_order() -> None:
 
     assert matrix[0][1] > 0.99
     assert matrix[0][2] < 0.9
+
+
+def test_adaptive_subdivision_preserves_compatible_regions() -> None:
+    low = tone(180, frames=4096)
+    middle = tone(420, frames=4096)
+    target = np.concatenate((low, middle, low))
+    candidate = np.concatenate((low, tone(760, frames=4096), low))
+
+    result = validate_with_adaptive_subdivision(
+        target,
+        candidate,
+        minimum_segment_frames=1024,
+        maximum_depth=4,
+        maximum_lag_frames=0,
+    )
+
+    assert len(result.segments) > 1
+    assert any(segment.accepted for segment in result.segments)
+    assert any(not segment.accepted for segment in result.segments)
+    assert 0.4 <= result.accepted_target_ratio < 1.0
