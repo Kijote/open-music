@@ -52,6 +52,8 @@ class AdaptiveSegment:
     depth: int
     accepted: bool
     score: float
+    lag_frames: int
+    gain: float
     rejection_reasons: tuple[str, ...]
 
 
@@ -60,6 +62,15 @@ class AdaptiveValidation:
     segments: tuple[AdaptiveSegment, ...]
     accepted_target_ratio: float
     fully_accepted: bool
+
+
+@dataclass(frozen=True)
+class MaterializedAdaptiveReplacement:
+    event_only: Audio
+    residual: Audio
+    weights: np.ndarray
+    validation: AdaptiveValidation
+    covered_frame_ratio: float
 
 
 def _mono(audio: Audio) -> np.ndarray:
@@ -363,6 +374,8 @@ def validate_with_adaptive_subdivision(
                 depth=depth,
                 accepted=result.accepted,
                 score=result.score,
+                lag_frames=result.lag_frames,
+                gain=result.gain,
                 rejection_reasons=result.rejection_reasons,
             )
         )
@@ -374,3 +387,82 @@ def validate_with_adaptive_subdivision(
     total_frames = target_values.shape[0]
     ratio = accepted_frames / total_frames if total_frames else 0.0
     return AdaptiveValidation(tuple(segments), ratio, bool(segments) and ratio == 1.0)
+
+
+def materialize_adaptive_replacement(
+    target: Audio,
+    candidate: Audio,
+    *,
+    crossfade_frames: int = 128,
+    minimum_segment_frames: int = 512,
+    maximum_depth: int = 4,
+    fft_sizes: tuple[int, ...] = (256, 1024, 4096),
+    maximum_lag_frames: int = 256,
+    thresholds: ValidationThresholds | None = None,
+) -> MaterializedAdaptiveReplacement:
+    """Render only validated subregions and leave every rejected sample residual.
+
+    The returned invariant is ``event_only + residual == target``. Raised-cosine
+    edges prevent accepted/rejected boundaries from introducing clicks; the
+    crossfade remainder deliberately stays in the residual.
+    """
+    if crossfade_frames < 0:
+        raise ValueError("crossfade_frames cannot be negative")
+    target_values = np.asarray(target, dtype=np.float64)
+    candidate_values = np.asarray(candidate, dtype=np.float64)
+    target_was_mono = target_values.ndim == 1
+    if target_was_mono:
+        target_values = target_values[:, None]
+    if candidate_values.ndim == 1:
+        candidate_values = candidate_values[:, None]
+    if target_values.shape[1] != candidate_values.shape[1]:
+        if candidate_values.shape[1] == 1:
+            candidate_values = np.repeat(candidate_values, target_values.shape[1], axis=1)
+        elif target_values.shape[1] == 1:
+            candidate_values = np.mean(candidate_values, axis=1, keepdims=True)
+        else:
+            raise ValueError("target and candidate channel counts are incompatible")
+
+    validation = validate_with_adaptive_subdivision(
+        target_values,
+        candidate_values,
+        minimum_segment_frames=minimum_segment_frames,
+        maximum_depth=maximum_depth,
+        fft_sizes=fft_sizes,
+        maximum_lag_frames=maximum_lag_frames,
+        thresholds=thresholds,
+    )
+    event_only = np.zeros_like(target_values)
+    weights = np.zeros(target_values.shape[0], dtype=np.float64)
+    for segment in validation.segments:
+        if not segment.accepted:
+            continue
+        length = segment.target_end - segment.target_start
+        source = candidate_values[segment.candidate_start : segment.candidate_end]
+        aligned_channels = []
+        for channel in range(source.shape[1]):
+            padded = np.pad(source[:, channel], (0, max(0, length - source.shape[0])))[:length]
+            aligned_channels.append(_shift(padded, segment.lag_frames))
+        transformed = np.stack(aligned_channels, axis=1) * segment.gain
+        envelope = np.ones(length, dtype=np.float64)
+        fade = min(crossfade_frames, length // 2)
+        if fade:
+            ramp = 0.5 - 0.5 * np.cos(np.linspace(0.0, np.pi, fade, endpoint=False))
+            envelope[:fade] = ramp
+            envelope[-fade:] = ramp[::-1]
+        destination = slice(segment.target_start, segment.target_end)
+        event_only[destination] = transformed * envelope[:, None]
+        weights[destination] = envelope
+
+    residual = target_values - event_only
+    covered = float(np.count_nonzero(weights > 0.0) / weights.size) if weights.size else 0.0
+    if target_was_mono:
+        event_only = event_only[:, 0]
+        residual = residual[:, 0]
+    return MaterializedAdaptiveReplacement(
+        event_only=event_only,
+        residual=residual,
+        weights=weights,
+        validation=validation,
+        covered_frame_ratio=covered,
+    )
