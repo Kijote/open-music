@@ -51,3 +51,28 @@ def test_clustering_requires_every_family_pair_to_match() -> None:
 
     assert cluster_harmonic_families(families, matrix) == ((0, 1), (2,))
     assert all(item.components for item in (first_partials, second_partials, third_partials))
+
+
+def test_similarity_preserves_harmonic_evolution_over_time() -> None:
+    half = 16_384
+    first_audio = np.concatenate(
+        (tone(180, half) + 0.8 * tone(360, half), tone(180, half) + 0.1 * tone(360, half))
+    )
+    reversed_audio = np.concatenate(
+        (tone(180, half) + 0.1 * tone(360, half), tone(180, half) + 0.8 * tone(360, half))
+    )
+    pairs = []
+    for audio in (first_audio, reversed_audio):
+        partials = decompose_spectral_partials(
+            audio, SAMPLE_RATE, fft_size=1024, minimum_track_frames=8, maximum_components=12
+        )
+        grouped = group_harmonic_partials(partials)
+        selected = min(grouped.families, key=lambda item: abs(item.fundamental_hz - 180))
+        pairs.append((selected, partials))
+
+    matrix = harmonic_family_similarity_matrix(
+        (pairs[0][0], pairs[1][0]),
+        (pairs[0][1], pairs[1][1]),
+    )
+
+    assert matrix[0][1] < 0.95
