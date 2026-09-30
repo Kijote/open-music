@@ -39,6 +39,8 @@ def test_rejects_local_note_change_hidden_by_compatible_frames() -> None:
 
     assert not result.accepted
     assert any(item.maximum_incompatible_run > 3 for item in result.resolutions)
+    assert result.suggested_split_frames
+    assert any(2500 <= frame <= 5600 for frame in result.suggested_split_frames)
 
 
 def test_rejects_envelope_change_despite_same_global_rms() -> None:
