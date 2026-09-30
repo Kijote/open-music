@@ -2,7 +2,6 @@ import numpy as np
 
 from open_music.partials import decompose_spectral_partials
 
-
 SAMPLE_RATE = 8_000
 
 
