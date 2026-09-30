@@ -1,11 +1,11 @@
 import numpy as np
 
+from open_music.discovery import cluster_candidates, repeat_similarity_matrix
 from open_music.validation import (
     ValidationThresholds,
     validate_replacement,
     validate_with_adaptive_subdivision,
 )
-from open_music.discovery import cluster_candidates, repeat_similarity_matrix
 
 
 def tone(frequency: float, frames: int = 8192, sample_rate: int = 8000) -> np.ndarray:
