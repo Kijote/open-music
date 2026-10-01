@@ -30,6 +30,10 @@
 - [x] Convergent residual rediscovery with reusable-module filtering.
 - [x] Lossless granular stream fallback for sustained/onset-free material.
 - [ ] Cluster and transform continuous grains to improve stream modularity.
+- [ ] Search repeated component bundles, not isolated spectral components.
+- [ ] Validate bundle identity in its original temporal context before naming a module.
+- [ ] Select bundles by explained energy plus boundary cost (MDL/coverage), not by
+      component count or isolated spectral similarity.
 
 ## M2.1 — Replacement validity correction
 
@@ -42,6 +46,10 @@
 - [ ] Windowed overlap-add reconstruction and boundary continuity metrics.
 - [ ] Re-run Block Rockin' Beats and calibrate thresholds with blind controls.
 - [ ] Regression run on Stairway to Heaven without song-specific parameters.
+- [ ] Reject isolated partials/stems as reconstruction modules; they are diagnostic
+      decompositions until their co-occurring bundle is validated.
+- [ ] Compare transformed bundles across the complete timeline, including explicit
+      pitch, duration, envelope, phase-continuity, and residual checks.
 
 ## M3 — Musical transformations
 
@@ -51,6 +59,9 @@
 - [ ] Envelope fitting.
 - [ ] Tempo, beat, and bar inference.
 - [ ] Hierarchical modules: hit, note, chord, phrase, pattern.
+- [ ] Component-bundle modules: synchronized partial/percussive components sharing
+      one temporal window and one transformation hypothesis.
+- [ ] Reuse graph: source bundle -> repeated occurrences -> accepted transforms.
 
 ## M4 — Open Music format
 
