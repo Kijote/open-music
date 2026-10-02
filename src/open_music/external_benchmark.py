@@ -19,6 +19,7 @@ from .discovery import (
 from .listening import write_listening_pack
 from .residual import discover_residual_layers
 from .stream import analyze_stream, render_stream, stream_metrics
+from .validation import validate_replacement
 from .wav import read_wav, write_wav
 
 
@@ -55,7 +56,51 @@ def run_external_benchmark(
         lengths = [int(candidate.shape[0]) for candidate in candidates]
         covered_frames = _coverage(onsets, lengths, audio.shape[0])
         similarity = repeat_similarity_matrix(candidates)
-        clusters = cluster_candidates(similarity)
+        proposed_clusters = cluster_candidates(similarity)
+        proposed_canonicals = select_canonical_candidates(similarity, proposed_clusters)
+        replacement_validations: list[dict] = []
+        clusters_list: list[tuple[int, ...]] = []
+        for cluster, canonical in zip(proposed_clusters, proposed_canonicals, strict=True):
+            compatible = [canonical]
+            rejected: list[int] = []
+            for candidate in cluster:
+                if candidate == canonical:
+                    continue
+                validation = validate_replacement(candidates[candidate], candidates[canonical])
+                replacement_validations.append(
+                    {
+                        "candidate": candidate,
+                        "canonical": canonical,
+                        "accepted": validation.accepted,
+                        "score": validation.score,
+                        "lag_frames": validation.lag_frames,
+                        "gain": validation.gain,
+                        "duration_ratio": validation.duration_ratio,
+                        "rejection_reasons": list(validation.rejection_reasons),
+                        "suggested_split_frames": list(validation.suggested_split_frames),
+                        "resolutions": [
+                            {
+                                "fft_size": item.fft_size,
+                                "hop_size": item.hop_size,
+                                "compatible_ratio": item.compatible_ratio,
+                                "p95_spectral_error": item.p95_spectral_error,
+                                "maximum_spectral_error": item.maximum_spectral_error,
+                                "p95_log_energy_error": item.p95_log_energy_error,
+                                "maximum_incompatible_run": item.maximum_incompatible_run,
+                                "incompatible_spans": [list(span) for span in item.incompatible_spans],
+                                "accepted": item.accepted,
+                            }
+                            for item in validation.resolutions
+                        ],
+                    }
+                )
+                if validation.accepted:
+                    compatible.append(candidate)
+                else:
+                    rejected.append(candidate)
+            clusters_list.append(tuple(sorted(compatible)))
+            clusters_list.extend((candidate,) for candidate in rejected)
+        clusters = tuple(sorted(clusters_list, key=lambda cluster: cluster[0]))
         canonicals = select_canonical_candidates(similarity, clusters)
 
         candidate_clusters = {
@@ -183,9 +228,18 @@ def run_external_benchmark(
                     [round(value, 12) for value in row] for row in similarity
                 ],
                 "similarity_parameters": {
-                    "spectral_windows": [512, 1024, 2048, 4096],
+                    "spectral_windows": [256, 1024, 4096],
                     "time_offsets": [0, 512, 1024, 2048],
                     "minimum_similarity": 0.989,
+                    "temporal_spectral_averaging": False,
+                    "cluster_linkage": "complete",
+                },
+                "replacement_validation": {
+                    "evaluated": len(replacement_validations),
+                    "accepted": sum(item["accepted"] for item in replacement_validations),
+                    "rejected": sum(not item["accepted"] for item in replacement_validations),
+                    "all_resolutions_must_pass": True,
+                    "pairs": replacement_validations,
                 },
                 "modules": {
                     "cluster_assignments": [
