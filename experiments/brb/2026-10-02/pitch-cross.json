@@ -1,0 +1,21 @@
+{"method":"ordered STFT pitch refinement on validated activation candidates","coarse_step":0.002,"fine_step":0.0002,"rows":[
+{"seed":4,"start_seconds":115.56571428571428,"score":0.972349496362406,"frequency_ratio":1.0,"semitones":0.0,"cents":0.0},
+{"seed":4,"start_seconds":119.95428571428572,"score":0.9691841816969344,"frequency_ratio":1.0002,"semitones":0.003462121897474948,"cents":0.3462121897474948},
+{"seed":4,"start_seconds":117.76,"score":0.910699942372938,"frequency_ratio":0.997,"semitones":-0.052015083166697396,"cents":-5.20150831666974},
+{"seed":5,"start_seconds":119.95428571428572,"score":0.972090259680189,"frequency_ratio":1.0,"semitones":0.0,"cents":0.0},
+{"seed":5,"start_seconds":115.56571428571428,"score":0.9694794226839791,"frequency_ratio":0.9998,"semitones":-0.0034628143911218786,"cents":-0.34628143911218784},
+{"seed":5,"start_seconds":117.76,"score":0.9112278257754313,"frequency_ratio":0.9972,"semitones":-0.04854254469538868,"cents":-4.854254469538867},
+{"seed":6,"start_seconds":120.19809523809523,"score":0.9028303290442451,"frequency_ratio":0.9968,"semitones":-0.05548831830537773,"cents":-5.5488318305377735},
+{"seed":6,"start_seconds":115.80952380952381,"score":0.9014816488361924,"frequency_ratio":0.9962,"semitones":-0.06591220652235154,"cents":-6.591220652235154},
+{"seed":6,"start_seconds":118.00380952380952,"score":0.9014399641541986,"frequency_ratio":0.988,"semitones":-0.20900463692891288,"cents":-20.90046369289129},
+{"seed":7,"start_seconds":118.00380952380952,"score":0.9089715570607642,"frequency_ratio":0.9944,"semitones":-0.09722158196357977,"cents":-9.722158196357977},
+{"seed":7,"start_seconds":115.80952380952381,"score":0.9081182398635709,"frequency_ratio":0.9924,"semitones":-0.1320763158842289,"cents":-13.207631588422892},
+{"seed":7,"start_seconds":120.19809523809523,"score":0.9075975494510412,"frequency_ratio":1.0034,"semitones":0.05876211857816571,"cents":5.876211857816571},
+{"seed":14,"start_seconds":117.76,"score":0.9490580737705459,"frequency_ratio":1.0,"semitones":0.0,"cents":0.0},
+{"seed":14,"start_seconds":119.95428571428572,"score":0.9222148963409232,"frequency_ratio":1.0,"semitones":0.0,"cents":0.0},
+{"seed":14,"start_seconds":115.56571428571428,"score":0.9220497980087463,"frequency_ratio":1.0,"semitones":0.0,"cents":0.0},
+{"seed":14,"start_seconds":122.14857142857143,"score":0.9163751092792047,"frequency_ratio":1.0024,"semitones":0.04149983726892911,"cents":4.149983726892911},
+{"seed":14,"start_seconds":5.851428571428571,"score":0.9102202501778219,"frequency_ratio":0.992,"semitones":-0.13905569130254214,"cents":-13.905569130254214},
+{"seed":14,"start_seconds":1.4628571428571429,"score":0.9031504169105266,"frequency_ratio":0.993,"semitones":-0.12161252560456581,"cents":-12.161252560456582},
+{"seed":14,"start_seconds":121.29523809523809,"score":0.9012620455343573,"frequency_ratio":1.006,"semitones":0.10356366172128068,"cents":10.356366172128068}
+]}
