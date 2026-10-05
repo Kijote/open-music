@@ -7,7 +7,7 @@ waveform correlation under bounded lag, then performs continuous micro-pitch
 refinement. No temporally averaged spectrum is used for final acceptance.
 """
 from __future__ import annotations
-import argparse,json,math,subprocess,tempfile
+import argparse,json,math,subprocess,tempfile,hashlib
 from pathlib import Path
 import numpy as np
 from scipy.io import wavfile
@@ -29,9 +29,15 @@ def corr_lag(a,b,maxlag):
   if c>best[0]: best=(c,lag)
  return best
 def pitch_audio(x,ratio):
- # Fast in-memory pitch proxy for fine search: frequency-axis change via
- # resampling followed by duration restoration. Final render uses rubberband.
- n=max(8,round(len(x)/ratio)); y=resample(x,n); return resample(y,len(x)).astype(np.float32)
+ # True duration-preserving pitch transform, matching final rendering semantics.
+ # Rubberband changes pitch while retaining the segment duration.
+ if abs(ratio-1.0)<1e-9: return x.astype(np.float32,copy=True)
+ with tempfile.TemporaryDirectory() as td:
+  td=Path(td); src=td/"in.wav"; dst=td/"out.wav"; wavfile.write(src,44100,x.astype(np.float32))
+  subprocess.run(["ffmpeg","-y","-loglevel","error","-i",str(src),"-af",f"rubberband=pitch={ratio:.12g}","-ar","44100","-ac","1","-c:a","pcm_f32le",str(dst)],check=True)
+  _,y=wavfile.read(dst)
+ if len(y)!=len(x): y=resample(y,len(x))
+ return y.astype(np.float32)
 def main():
  p=argparse.ArgumentParser(); p.add_argument("--input",type=Path,required=True); p.add_argument("--output",type=Path,required=True); p.add_argument("--samples-dir",type=Path,required=True); p.add_argument("--duration",type=float,default=.6); p.add_argument("--threshold",type=float,default=.90); p.add_argument("--top-k",type=int,default=12); p.add_argument("--retrieval-pitch-cents",type=float,default=50.0); p.add_argument("--retrieval-pitch-step-cents",type=float,default=10.0); p.add_argument("--min-separation",type=float,default=.25); a=p.parse_args(); a.samples_dir.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory() as td:
@@ -71,7 +77,9 @@ def main():
   for ratio in np.arange(lo,hi+.00001,.0002):
    y=pitch_audio(seg[j],float(ratio)); cc,ll=corr_lag(seg[i],y,round(.004*sr)); ss=.55*multi+.45*max(0,cc)
    if ss>best[0]: best=(ss,float(ratio),cc,ll)
-  module=f"iter-module-{rank:03d}"; sample=f"{module}.wav"; wavfile.write(a.samples_dir/sample,sr,seg[j])
+  # Stable content identity: canonical sample PCM determines module ID across iterations.
+  pcm=np.asarray(seg[j],dtype=np.float32).tobytes(); module="module-"+hashlib.sha256(pcm).hexdigest()[:16]
+  sample=f"{module}.wav"; wavfile.write(a.samples_dir/sample,sr,seg[j])
   cents=1200*math.log2(best[1])
   # A validated pair creates two reusable occurrences. The canonical exemplar is candidate j.
   for q,ratio in ((j,1.0),(i,1.0/best[1])):
