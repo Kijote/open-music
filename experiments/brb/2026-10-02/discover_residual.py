@@ -33,7 +33,7 @@ def pitch_audio(x,ratio):
  # resampling followed by duration restoration. Final render uses rubberband.
  n=max(8,round(len(x)/ratio)); y=resample(x,n); return resample(y,len(x)).astype(np.float32)
 def main():
- p=argparse.ArgumentParser(); p.add_argument("--input",type=Path,required=True); p.add_argument("--output",type=Path,required=True); p.add_argument("--samples-dir",type=Path,required=True); p.add_argument("--duration",type=float,default=.6); p.add_argument("--threshold",type=float,default=.90); p.add_argument("--top-k",type=int,default=12); p.add_argument("--min-separation",type=float,default=.25); a=p.parse_args(); a.samples_dir.mkdir(parents=True,exist_ok=True)
+ p=argparse.ArgumentParser(); p.add_argument("--input",type=Path,required=True); p.add_argument("--output",type=Path,required=True); p.add_argument("--samples-dir",type=Path,required=True); p.add_argument("--duration",type=float,default=.6); p.add_argument("--threshold",type=float,default=.90); p.add_argument("--top-k",type=int,default=12); p.add_argument("--retrieval-pitch-cents",type=float,default=50.0); p.add_argument("--retrieval-pitch-step-cents",type=float,default=10.0); p.add_argument("--min-separation",type=float,default=.25); a=p.parse_args(); a.samples_dir.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory() as td:
   w=Path(td)/"x.wav"; decode(a.input,w); sr,x=wavfile.read(w); x=x.astype(np.float32)
  n=round(a.duration*sr); env=np.convolve(np.abs(x),np.ones(max(1,sr//200))/max(1,sr//200),mode="same")
@@ -46,9 +46,15 @@ def main():
   scored=[]
   for j in range(i):
    if abs(starts[i]-starts[j])<n: continue
-   s=sim(desc[i],desc[j])
-   if s>.72: scored.append((s,j))
-  for rs,j in sorted(scored,reverse=True)[:6]:
+   best_rs=sim(desc[i],desc[j]); best_ratio=1.0
+   # Pitch-aware retrieval: coarse microtonal hypotheses can surface pairs that
+   # identity-pitch retrieval would discard. Expensive validation stays shortlisted.
+   for cents in np.arange(-a.retrieval_pitch_cents,a.retrieval_pitch_cents+1e-9,a.retrieval_pitch_step_cents):
+    if abs(cents)<1e-9: continue
+    ratio=2**(float(cents)/1200.0); pd=ordered(pitch_audio(seg[j],ratio),sr,256); ps=sim(desc[i],pd)
+    if ps>best_rs: best_rs,best_ratio=ps,ratio
+   if best_rs>.72: scored.append((best_rs,j,best_ratio))
+  for rs,j,retrieval_ratio in sorted(scored,reverse=True)[:6]:
    multi=np.mean([sim(ordered(seg[i],sr,k),ordered(seg[j],sr,k)) for k in (1024,4096)])
    c,lag=corr_lag(seg[i],seg[j],round(.004*sr))
    score=.55*multi+.45*max(0,c)
@@ -57,7 +63,7 @@ def main():
  rows=[]
  for rank,(score,i,j,multi,c,lag) in enumerate(pairs,1):
   # continuous micro-pitch around identity; the earlier BRB experiment showed useful corrections in cents.
-  best=(score,1.0,c,lag)
+  best=(score,float(retrieval_ratio),c,lag)
   for ratio in np.arange(.988,1.0121,.002):
    y=pitch_audio(seg[j],float(ratio)); cc,ll=corr_lag(seg[i],y,round(.004*sr)); ss=.55*multi+.45*max(0,cc)
    if ss>best[0]: best=(ss,float(ratio),cc,ll)
