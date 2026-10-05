@@ -11,7 +11,7 @@ import argparse,json,math,subprocess,tempfile
 from pathlib import Path
 import numpy as np
 from scipy.io import wavfile
-from scipy.signal import stft,find_peaks,resample_poly
+from scipy.signal import stft,find_peaks,resample
 
 def decode(src,dst):
  subprocess.run(["ffmpeg","-y","-loglevel","error","-i",str(src),"-ar","44100","-ac","1","-c:a","pcm_f32le",str(dst)],check=True)
@@ -31,7 +31,7 @@ def corr_lag(a,b,maxlag):
 def pitch_audio(x,ratio):
  # Fast in-memory pitch proxy for fine search: frequency-axis change via
  # resampling followed by duration restoration. Final render uses rubberband.
- n=max(8,round(len(x)/ratio)); y=resample_poly(x,n,len(x)); return np.interp(np.linspace(0,len(y)-1,len(x)),np.arange(len(y)),y).astype(np.float32)
+ n=max(8,round(len(x)/ratio)); y=resample(x,n); return resample(y,len(x)).astype(np.float32)
 def main():
  p=argparse.ArgumentParser(); p.add_argument("--input",type=Path,required=True); p.add_argument("--output",type=Path,required=True); p.add_argument("--samples-dir",type=Path,required=True); p.add_argument("--duration",type=float,default=.6); p.add_argument("--threshold",type=float,default=.90); p.add_argument("--top-k",type=int,default=12); p.add_argument("--min-separation",type=float,default=.25); a=p.parse_args(); a.samples_dir.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory() as td:
@@ -72,6 +72,6 @@ def main():
    rows.append({"module_id":module,"sample":sample,"start_seconds":starts[q]/sr,"pitch_ratio":ratio,
     "gain":1.0,"score":best[0],"occurrence_count":2,"ordered_tf_similarity":multi,
     "waveform_correlation":best[2],"lag_samples":best[3],"pitch_cents":cents,
-    "needs_review":best[0]<a.threshold})
+    "needs_review":bool(best[0]<a.threshold)})
  a.output.parent.mkdir(parents=True,exist_ok=True); a.output.write_text(json.dumps(rows,indent=2)+"\n")
 if __name__=="__main__": main()
