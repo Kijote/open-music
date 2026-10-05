@@ -48,6 +48,12 @@ def main():
             sr2,x=wavfile.read(shifted)
             if sr2!=sr: raise ValueError(f"sample rate mismatch: {sample}")
             x=x.astype(np.float32)
+            # Detector samples may be mono; reconstruction is stereo. Broadcast
+            # mono content explicitly instead of relying on incompatible shapes.
+            if x.ndim==1 and modeled.ndim==2: x=np.repeat(x[:,None],modeled.shape[1],axis=1)
+            elif x.ndim==2 and modeled.ndim==1: x=np.mean(x,axis=1)
+            elif x.ndim==2 and modeled.ndim==2 and x.shape[1]!=modeled.shape[1]:
+                raise ValueError(f"channel mismatch: {sample}: {x.shape[1]} vs {modeled.shape[1]}")
             start=round(float(p["start_seconds"])*sr)
             n=min(len(x),len(modeled)-start)
             if n<=0: continue
